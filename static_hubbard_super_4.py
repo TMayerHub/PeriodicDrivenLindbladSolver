@@ -23,7 +23,7 @@ Gamma1=np.ones(L)*0.2
 Gamma2=np.ones(L)*0.7
 #Gamma2[center]=0
 
-
+#total lenght is N=4L, due to spin up and down
 basis = spinful_fermion_basis_1d(2*L)
 
 
@@ -154,14 +154,20 @@ def get_leftVacuum(L_static):
                               format(spin_down,'0{}b'.format(2*L)))
 
                 #count number of occupied states in Fockspace
-                n=int((spin_up_fock.bit_count()+spin_down_fock.bit_count()))
+                n=int(spin_up_fock).bit_count()+int(spin_down_fock).bit_count()
                 #print(format(spin_up_fock,'0{}b'.format(L)),\
                 #              format(spin_down_fock,'0{}b'.format(L)))
                 #print(n)
                 #calculate phase
-                data.append((-1j)**(n))
+                #if n%2:
+                    #data.append((-1j)**(n))
+                #else:
+                    #data.append((-1j)**(n)*(-1))
+                data.append((1)**(n))
                 #data.append((1)**n)
                 row_ind.append(k)
+                print(format(spin_up,'0{}b'.format(2*L)),format(spin_down,'0{}b'.format(2*L)))
+                print(k,(-1j)**(n))
     col_ind=np.zeros(len(data),dtype=int)
     data=np.array(data)
     
@@ -232,12 +238,38 @@ leftVacuum=get_leftVacuum(L_static)
 
 ##test leftVacuum
 vl0,rho_inf=exact_Diagonalization(L_static_csr)
-print(vl0)
-print(leftVacuum)
-print(np.sum(abs(vl0-leftVacuum)))
+# %%
+
+
+vl0[abs(vl0)< 1e-15]=np.real(vl0[abs(vl0)< 1e-15])*0
+
+print('difference',np.sum(abs(vl0-leftVacuum)))
 print(np.sum(abs(vl0.H@L_static_csr)))
-n_inf=n(0,rho_inf,basis,vl0)
+n_inf=n(0,rho_inf,basis,leftVacuum)
 print('n_inf',n_inf)
+
+print('vl0')
+#print(vl0)
+print('leftVacuum')
+#print(leftVacuum)
+
+# %%
+
+#print('basis index:  ',basis.index(format(3,'0{}b'.format(2*L)),\
+#              format(3,'0{}b'.format(2*L))))
+for i_vl, data_vl in zip(vl0.indices,vl0.data):
+    data_V=leftVacuum[i_vl].data
+    #if leftVacuum[i_vl].data != 
+    if not data_V:
+        data_V=0
+    else:
+        data_V=data_V[0]
+    if abs(data_vl-data_V)>1e-10:
+        print(format(2**(4*L)-i_vl-1,'0{}b'.format(4*L)))
+        print(i_vl,'    ',f"{data_vl:.3}", data_V)
+# %%
+    
+
 
 
 #initial rho
@@ -251,12 +283,12 @@ dt=0.01
 
 t=np.linspace(t0,tf,int(tf/dt)+1)
 
-rho_0T=rho0.T
-rho=scipy.integrate.solve_ivp(differential_rho_T,(t0,tf),rho_0T[0]+0j,method='RK45',t_eval=t)
-rho=rho['y']
+#rho_0T=rho0.T
+#rho=scipy.integrate.solve_ivp(differential_rho_T,(t0,tf),rho_0T[0]+0j,method='RK45',t_eval=t)
+#rho=rho['y']
 
-n_exp=n(0,rho,basis,leftVacuum)
-print('n_time evolved: ',n_exp[-1])
+#n_exp=n(0,rho,basis,leftVacuum)
+#print('n_time evolved: ',n_exp[-1])
 
 
 
