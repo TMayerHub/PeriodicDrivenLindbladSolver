@@ -13,7 +13,7 @@ import scipy
 import matplotlib.pyplot as plt
 
 ##### define model parameters #####
-L=1# system size
+L=4# system size
 center=int(np.floor(L/2))
 T=np.sqrt(2.0)*np.ones(L)+0j#hopping right
 U=1
@@ -43,10 +43,10 @@ def defineH_super(L,T,U,eps,basis):
     eps_list=[[eps[i],i] for i in range(L)]
     
     #Hamiltonian acting on augmented Fockspace
-    hop_left_a = [[-T[i-L],i,(i+1)] for i in range(L,2*L-1)] # hopping to the right
-    hop_right_a = [[-T_c[i-L],(i+1),(i)] for i in range(L,2*L-1)] # hopping to the left
-    int_list_a = [[-U,L+i_middle,L+i_middle] for i in range(L,2*L)] # onsite interaction
-    eps_list_a=[[-eps[i-L],i] for i in range(L,2*L)]
+    hop_left_a = [[-1*T[i-L],i,(i+1)] for i in range(L,2*L-1)] # hopping to the right
+    hop_right_a = [[-1*T_c[i-L],(i+1),(i)] for i in range(L,2*L-1)] # hopping to the left
+    int_list_a = [[-1*U,L+i_middle,L+i_middle] for i in range(L,2*L)] # onsite interaction
+    eps_list_a=[[-1*eps[i-L],i] for i in range(L,2*L)]
     
     # static and dynamic lists
     static= [	
@@ -80,6 +80,10 @@ def define_Dissipators1(L,Gamma1,basis):
     part2 = [[-1*Gamma1[i],i,i] for i in range(L)]
     part3 = [[-1*Gamma1[i],L+i,L+i] for i in range(L)]
     
+    #part1 = [[-2j*Gamma1[i]*(1j)*(-1)**((2**(4*L)-i-2).bit_count()),i,(L+i)] for i in range(L)]
+    #part2 = [[-1*Gamma1[i],i,i] for i in range(L)]
+    #part3 = [[-1*Gamma1[i],L+i,L+i] for i in range(L)]
+    
     static=[
         #spin up
         ["--|",part1],
@@ -95,9 +99,16 @@ def define_Dissipators1(L,Gamma1,basis):
 
 #add particels to the system
 def define_Dissipators2(L,Gamma2,basis):
+    #add phase due to augmented space
     part1 = [[-2j*Gamma2[i],i,(L+i)] for i in range(L)]
     part2 = [[-1*Gamma2[i],i,i] for i in range(L)]
     part3 = [[-1*Gamma2[i],L+i,L+i] for i in range(L)]
+    
+    #add phase due to augmented space
+    #part1 = [[-2j*Gamma2[i]*(1j)*(-1)**((2**(4*L)-i).bit_count()),i,(L+i)] for i in range(L)]
+    #part2 = [[-1*Gamma2[i],i,i] for i in range(L)]
+    #part3 = [[-1*Gamma2[i],L+i,L+i] for i in range(L)]
+    #part4 = [[-2j*Gamma2[i],] for i in range(L)]
     #print(part1)
     #print(part2)
     #print(part3)
@@ -106,10 +117,12 @@ def define_Dissipators2(L,Gamma2,basis):
         ["++|",part1],
         ["-+|",part2],
         ["-+|",part3],
+        #["|",part4],
         #spin down
         ["|++",part1],
         ["|-+",part2],
-        ["|-+",part3],   
+        ["|-+",part3],
+        #["|",part4]
         ]
     
     dynamic=[]
@@ -163,11 +176,15 @@ def get_leftVacuum(L_static):
                     #data.append((-1j)**(n))
                 #else:
                     #data.append((-1j)**(n)*(-1))
-                data.append((1)**(n))
+                if n%2:
+                    data.append(1j*(-1)**L)
+                else: data.append((-1)**(L-int(spin_up_fock).bit_count()))
+                #data.append((-1j)**(n))
+                #data.append(1)
                 #data.append((1)**n)
                 row_ind.append(k)
-                print(format(spin_up,'0{}b'.format(2*L)),format(spin_down,'0{}b'.format(2*L)))
-                print(k,(-1j)**(n))
+                #print(format(spin_up,'0{}b'.format(2*L)),format(spin_down,'0{}b'.format(2*L)))
+                #print(k,(-1j)**(n**2))
     col_ind=np.zeros(len(data),dtype=int)
     data=np.array(data)
     
@@ -208,8 +225,10 @@ def n(i,rho,basis,leftVacuum):
 
 def exact_Diagonalization(L_static_csr):
     w,vl,vr=scipy.linalg.eig(L_static_csr.toarray(),left=True,right=True)
-    #print(abs(w))
+    
     w_min=np.argmin(abs(w))
+    #print(w_min)
+
     rho_inf=np.array([vr[:,w_min]]).T
 
     #column vector
@@ -219,6 +238,11 @@ def exact_Diagonalization(L_static_csr):
     rho_inf=rho_inf/norm
     
     return vl0,rho_inf
+
+def Diag_rho_inf(L_static_csr):
+    w,rho_inf=scipy.sparse.linalg.eigsh(L_static_csr,k=1,sigma=0)
+    norm=leftVacuum.H@rho_inf
+    return rho_inf/norm
         
         
         
@@ -228,7 +252,10 @@ def exact_Diagonalization(L_static_csr):
 
 #calculate the Lindbladoperator
 L_static=get_Lindbladoperator(L,T,U,eps,Gamma1,Gamma2,basis)
-L_static_csr=L_static.tocsr()
+print('define left vacuum')
+leftVacuum=get_leftVacuum(L_static)
+print('operator to csr')
+#L_static_csr=L_static.tocsr()
 
 
 
@@ -238,35 +265,56 @@ leftVacuum=get_leftVacuum(L_static)
 
 ##test leftVacuum
 vl0,rho_inf=exact_Diagonalization(L_static_csr)
+#finding rho_inf
+print('computing rho_inf')
+rho_inf=Diag_rho_inf(L_static_csr)
 # %%
 
 
 vl0[abs(vl0)< 1e-15]=np.real(vl0[abs(vl0)< 1e-15])*0
 
-print('difference',np.sum(abs(vl0-leftVacuum)))
-print(np.sum(abs(vl0.H@L_static_csr)))
-n_inf=n(0,rho_inf,basis,leftVacuum)
-print('n_inf',n_inf)
 
-print('vl0')
+#print(np.sum(abs(leftVacuum.H@L_static_csr)))
+
+
+#print('vl0')
 #print(vl0)
-print('leftVacuum')
+#print('leftVacuum')
 #print(leftVacuum)
 
 # %%
 
 #print('basis index:  ',basis.index(format(3,'0{}b'.format(2*L)),\
 #              format(3,'0{}b'.format(2*L))))
+print()
+print('difference',np.sum(abs(vl0-leftVacuum)))
+print('direct comparison')
+correct=[]
+false=[]
+
 for i_vl, data_vl in zip(vl0.indices,vl0.data):
     data_V=leftVacuum[i_vl].data
     #if leftVacuum[i_vl].data != 
-    if not data_V:
+    if len(data_V)==0:
         data_V=0
     else:
         data_V=data_V[0]
+    num=int(2**(4*L)-i_vl-1).bit_count()/2
     if abs(data_vl-data_V)>1e-10:
-        print(format(2**(4*L)-i_vl-1,'0{}b'.format(4*L)))
-        print(i_vl,'    ',f"{data_vl:.3}", data_V)
+        #print(format(2**(4*L)-i_vl-1,'0{}b'.format(4*L)), num)
+        #print(i_vl,'    ',f"{data_vl:.3}", data_V)
+        false.append(num)
+    else:
+        if abs(data_vl)>1e-10:
+            correct.append(num)
+    if abs(data_vl)>1e-10:
+        print(format(2**(4*L)-i_vl-1,'0{}b'.format(4*L)), num)
+        print(f"{data_vl:.3}")
+        print('')
+
+print(false)     
+print(correct)      
+print()
 # %%
     
 
@@ -291,7 +339,8 @@ t=np.linspace(t0,tf,int(tf/dt)+1)
 #print('n_time evolved: ',n_exp[-1])
 
 
-
+n_inf=n(0,rho_inf,basis,leftVacuum)
+print('n_inf',n_inf)
 print('n_analytic',2*Gamma2[0]/(Gamma1[0]+Gamma2[0]))
 
 
