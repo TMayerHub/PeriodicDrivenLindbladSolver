@@ -13,16 +13,15 @@ import scipy
 import matplotlib.pyplot as plt
 # %%
 ##### define model parameters #####
-L=5# system size
+L=3# system size
 center=int(np.floor(L/2))
 T=np.sqrt(2.0)*np.ones(L)+0j#hopping right
-U=1
-eps=1.0 #onsite energy
+U=2
+eps=0.0 #onsite energy
 Gamma1=np.ones(L)*0.2
-#Gamma1[center]=0
+Gamma1[center]=0
 Gamma2=np.ones(L)*0.7
-#Gamma2[center]=0
-
+Gamma2[center]=0
 #total lenght is N=4L, due to spin up and down
 basis = spinful_fermion_basis_1d(2*L)
 
@@ -34,20 +33,25 @@ def defineH_super(L,T,U,eps,basis):
         eps=np.ones(L)*eps
         
     T_c=np.conjugate(T)
-    i_middle=int(np.floor(L/2))
-
-    #Hamiltonian acting on Fockspace
-    hop_left = [[T[i],i,(i+1)] for i in range(L-1)] # hopping to the right
-    hop_right = [[T_c[i],(i+1),(i)] for i in range(L-1)] # hopping to the left
-    int_list = [[U,i_middle,i_middle] for i in range(L)] # onsite interaction
-    eps_list=[[eps[i],i] for i in range(L)]
+    #i_middle=int(np.floor(L/2))
+    #odd
+    if L%2:
+        i_middle=L-1
+    #even
+    else:
+        i_middle=L
     
-    #Hamiltonian acting on augmented Fockspace
-    hop_left_a = [[-1*T[i-L],i,(i+1)] for i in range(L,2*L-1)] # hopping to the right
-    hop_right_a = [[-1*T_c[i-L],(i+1),(i)] for i in range(L,2*L-1)] # hopping to the left
-    int_list_a = [[-1*U,L+i_middle,L+i_middle] for i in range(L,2*L)] # onsite interaction
-    eps_list_a=[[-1*eps[i-L],i] for i in range(L,2*L)]
+    #Hamiltonian acting on Fockspace (Fockspace are the odd sites)  
+    hop_left = [[T[int((i-1)/2)],i,(i+2)] for i in range(1,2*L-2,2)] # hopping to the right
+    hop_right = [[T_c[int((i-1)/2)],(i+2),(i)] for i in range(1,2*L-2,2)] # hopping to the left
+    int_list = [[U,i_middle+1,i_middle+1]] # onsite interaction
+    eps_list=[[eps[int((i-1)/2)],i] for i in range(1,2*L,2)]
     
+    #Hamiltonian acting on augmented Fockspace  
+    hop_left_a = [[-1*T[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
+    hop_right_a = [[-1*T_c[int((i)/2)],(i+2),(i)] for i in range(0,2*L-2,2)] # hopping to the left
+    int_list_a = [[-1*U,i_middle,i_middle]] # onsite interaction
+    eps_list_a=[[-1*eps[int((i)/2)],i] for i in range(0,2*L,2)]
     # static and dynamic lists
     static= [	
             #Hamiltonian acting on Fockspace
@@ -76,9 +80,14 @@ def defineH_super(L,T,U,eps,basis):
 
 #removes particels from the system
 def define_Dissipators1(L,Gamma1,basis):
-    part1 = [[-2j*Gamma1[i],i,(L+i)] for i in range(L)]
-    part2 = [[-1*Gamma1[i],i,i] for i in range(L)]
-    part3 = [[-1*Gamma1[i],L+i,L+i] for i in range(L)]
+    #mixed Fock and augmented
+    part1 = [[-2j*Gamma1[int(i/2)],(i+1),i] for i in range(0,2*L,2)]
+    #Fock
+    part2 = [[-1*Gamma1[int((i-1)/2)],i,i] for i in range(1,2*L,2)]
+    #augmented
+    part3 = [[-1*Gamma1[int((i)/2)],i,i] for i in range(0,2*L,2)]
+    
+    
     
     
     static=[
@@ -96,10 +105,12 @@ def define_Dissipators1(L,Gamma1,basis):
 
 #add particels to the system
 def define_Dissipators2(L,Gamma2,basis):
-    #add phase due to augmented space
-    part1 = [[-2j*Gamma2[i],i,(L+i)] for i in range(L)]
-    part2 = [[-1*Gamma2[i],i,i] for i in range(L)]
-    part3 = [[-1*Gamma2[i],L+i,L+i] for i in range(L)]
+    #mixed
+    part1 = [[-2j*Gamma2[int(i/2)],(i+1),(i)] for i in range(0,2*L,2)]
+    #fock
+    part2 = [[-1*Gamma2[int((i-1)/2)],i,i] for i in range(1,2*L,2)]
+    #augmented
+    part3 = [[-1*Gamma2[int((i)/2)],i,i] for i in range(0,2*L,2)]
     
     static=[
         #spin up
@@ -134,36 +145,25 @@ def get_leftVacuum(L_static):
     states=basis.states
     data=[]
     row_ind=[]
+    #define a mask for even and odd states       
+    mask_even=int('01'*(4*L//2),2)
+    mask_odd=mask_even << 1 
     for state in states:
-        #shifting 2*L to the right => only the 2*L leftmost remain
-        spin_up=state >> 2*L
-        #mask with 0..(2*L)1...(2*L)
-        spin_down=state & 2**(2*L)-1
-        
-        #check if spinup is the same
-        spin_up_fock=spin_up >> L
-        spin_up_augmented=spin_up & 2**(L)-1
-        equal_up=spin_up_fock==spin_up_augmented
-        
-        if equal_up:      
-            #check if spin down is the same
-            spin_down_fock=spin_down >> L
-            spin_down_augmented=spin_down & 2**(L)-1
-            equal_down=spin_down_fock==spin_down_augmented
+        #print(bin(mask_odd))
+        even_bits=state&mask_even
+        odd_bits=(state&mask_odd) >> 1
             
-            if equal_down:
-                #get the index corresponding to this state
-                k=basis.index(format(spin_up,'0{}b'.format(2*L)),\
-                              format(spin_down,'0{}b'.format(2*L)))
-
-                #count number of occupied states in Fockspace
-                n=int(spin_up_fock).bit_count()+int(spin_down_fock).bit_count()
-
-                if n%2:
-                    data.append(1j*(-1)**L)
-                else: data.append((-1)**(L-int(spin_up_fock).bit_count()))
-
-                row_ind.append(k)
+        if(even_bits==odd_bits):
+            #shifting 2*L to the right => only the 2*L leftmost remain
+            spin_up=state >> 2*L
+            #masking the left part of the state
+            spin_down=state & 2**(2*L)-1
+            k=basis.index(format(spin_up,'0{}b'.format(2*L)),\
+                          format(spin_down,'0{}b'.format(2*L)))
+            n=int(int(state).bit_count()/2)
+            data.append((-1j)**n)
+            row_ind.append(k)
+            
 
     col_ind=np.zeros(len(data),dtype=int)
     data=np.array(data)
@@ -186,27 +186,7 @@ def differential_rho_T(t,rho_nT):
     #return rho_n_T@L_static_csr.T
     
 
-def n(i,rho,basis,leftVacuum):
-    #i counts from the middle
-    i_center=int(np.floor(L/2))
-    index=i_center+i
-    
-    n_list=[[1+0j,index]]
-    
-    static=[
-        ["n|", n_list],
-        ["|n", n_list],
-        ]
-    dynamic = []
-    
-    n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis)
-    n_csr=n_operator.tocsr()
-    rho_norm=leftVacuum.H@rho
-    rho=rho/rho_norm
-    n_rho=n_csr@rho
-    n_exp=leftVacuum.H@n_rho
 
-    return n_exp[0]
 
 def exact_Diagonalization(L_static):
     L_static_csr=L_static.as_sparse_format()
@@ -236,7 +216,7 @@ def compareVectors(v1,v2):
     false=[]
     
     for i_1, data_1 in zip(v1.indices,v1.data):
-        data_2=leftVacuum[i_1].data
+        data_2=v2[i_1].data
         #if leftVacuum[i_vl].data != 
         if len(data_2)==0:
             data_2=0
@@ -251,15 +231,72 @@ def compareVectors(v1,v2):
             if abs(data_1)>1e-10:
                 correct.append(num)
         if abs(data_1)>1e-10:
+            print('data_1')
             print(format(2**(4*L)-i_1-1,'0{}b'.format(4*L)), num)
             print(f"{data_1:.3}")
+            print('')
+            
+        if abs(data_2)>1e-10:
+            print('data_2')
+            print(format(2**(4*L)-i_1-1,'0{}b'.format(4*L)), num)
+            print(f"{data_2:.3}")
             print('')
     
     print(false)     
     print(correct)      
     print()  
         
+def expectationValue(i,operator,rho,basis,leftVacuum):
+    if operator=='n':
+        operator=n(i,rho,basis,leftVacuum)
+    operator_csr=operator.tocsr()
+    
+    rho_norm=leftVacuum.H@rho
+    rho=rho/rho_norm
+    
+    n_rho=operator_csr@rho
+    n_exp=leftVacuum.H@n_rho
+    return n_exp[0]
+    
+def n(i,rho,basis,leftVacuum):
+    #i counts from the middle
+    if L%2:
+        i_middle=L
+    #even
+    else:
+        i_middle=L+1
 
+    index=i_middle+2*i
+    n_list=[[1+0j,index]]
+    
+    static=[
+        ["n|", n_list],
+        ["|n", n_list],
+        ]
+    dynamic = []
+    
+    n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    return n_operator
+
+def a(i,rho,basis,leftVacuum):
+    #i counts from the middle
+    if L%2:
+        i_middle=L
+    #even
+    else:
+        i_middle=L+1
+
+    index=i_middle+2*i
+    n_list=[[1+0j,index]]
+    
+    static=[
+        ["n|", n_list],
+        ["|n", n_list],
+        ]
+    dynamic = []
+    
+    n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    return n_operator
 
 # %%
 #calculate the Lindbladoperator
@@ -268,12 +305,16 @@ print('define left vacuum')
 leftVacuum=get_leftVacuum(L_static)
 
 print('calculate EV')
-#rho_inf=lowestEV(L_static)
+#vl0,rho_inf=exact_Diagonalization(L_static)
+rho_inf=lowestEV(L_static)
 
 # %%
 
+def G_r():
+    rho=L_static.evolve(rho0T[0],0,t)
+
 #initial rho
-rho0=leftVacuum#.toarray()
+rho0=leftVacuum
 
 
 #calculate timeevolution of rho
@@ -282,10 +323,28 @@ tf=1e2
 dt=0.1
 
 t=np.linspace(t0,tf,int(tf/dt)+1)
-#print('calculate rdot: ',L_static.rdot(rho0))
-
 
 rho0T=rho0.T.toarray()
+#check that inital is not multiplied by -i
+rho=L_static.evolve(rho0T[0],0,t)
+rho_end=rho[:,-1]
+#n_exp=n(0,rho_end,basis,leftVacuum)
+n_exp=expectationValue(0,'n',rho_end,basis,leftVacuum)
+
+n_inf=expectationValue(0,'n',rho_inf,basis,leftVacuum)
+
+print('n_time evolved: ',n_exp)
+print('n_inf',n_inf)
+print('n_analytic',2*Gamma2[0]/(Gamma1[0]+Gamma2[0]))
+
+n_exp=expectationValue(0,'n',rho,basis,leftVacuum)
+
+plt.figure()
+plt.title('time dependence of n0')
+plt.plot(t,n_exp)
+
+
+
 #rho=scipy.integrate.solve_ivp(differential_rho_T,(t0,tf),rho_0T[0]+0j,method='RK45',t_eval=t)
 #rho=rho['y']
 #print('type: ',type(rho0T))
@@ -300,32 +359,6 @@ rho0T=rho0.T.toarray()
 
 #rho=scipy.integrate.solve_ivp(differential_rho_T,(t0,tf),rho0T[0]+0j,method='RK45',t_eval=t)
 #rho=rho['y']
-
-#check that inital is not multiplied by -i
-rho=L_static.evolve(rho0T[0],0,t)
-rho_end=rho[:,-1]
-#print(rho_end)
-#print(np.shape(rho_end))
-#print(rho_inf)
-print('n_exp')
-n_exp=n(0,rho_end,basis,leftVacuum)
-#print('n_time evolved: ',n_exp[-1])
-
-
-#n_inf=n(0,rho_inf,basis,leftVacuum)
-print('n_exp',n_exp)
-#print('n_inf',n_inf)
-print('n_analytic',2*Gamma2[0]/(Gamma1[0]+Gamma2[0]))
-
-
-
-# plt.figure()
-# plt.title('time dependence of n0')
-# plt.plot(t,n_exp)
-
-
-
-
 
 
 
