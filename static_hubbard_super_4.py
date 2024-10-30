@@ -15,13 +15,16 @@ import matplotlib.pyplot as plt
 ##### define model parameters #####
 L=3# system size
 center=int(np.floor(L/2))
-T=np.sqrt(2.0)*np.ones(L)+0j#hopping right
+T=(np.sqrt(1.0)*np.ones(L)+0j)*0.5#hopping right
 U=2
-eps=0.0 #onsite energy
-Gamma1=np.ones(L)*0.2
+eps=-U/2 #onsite energy
+#eps=0
+Gamma1=np.ones(L)*0.5
 Gamma1[center]=0
-Gamma2=np.ones(L)*0.7
+#Gamma1=[0,0,0.1]
+Gamma2=np.ones(L)*0.5
 Gamma2[center]=0
+#Gamma2=[0.1,0,0]
 #total lenght is N=4L, due to spin up and down
 basis = spinful_fermion_basis_1d(2*L)
 
@@ -36,21 +39,21 @@ def defineH_super(L,T,U,eps,basis):
     #i_middle=int(np.floor(L/2))
     #odd
     if L%2:
-        i_middle=L-1
+        i_middle=L
     #even
     else:
-        i_middle=L
+        i_middle=L+1
     
     #Hamiltonian acting on Fockspace (Fockspace are the odd sites)  
     hop_left = [[T[int((i-1)/2)],i,(i+2)] for i in range(1,2*L-2,2)] # hopping to the right
-    hop_right = [[T_c[int((i-1)/2)],(i+2),(i)] for i in range(1,2*L-2,2)] # hopping to the left
-    int_list = [[U,i_middle+1,i_middle+1]] # onsite interaction
+    hop_right = [[T_c[int((i-1)/2)],(i+2),i] for i in range(1,2*L-2,2)] # hopping to the left
+    int_list = [[U,i_middle,i_middle]] # onsite interaction
     eps_list=[[eps[int((i-1)/2)],i] for i in range(1,2*L,2)]
     
     #Hamiltonian acting on augmented Fockspace  
     hop_left_a = [[-1*T[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
-    hop_right_a = [[-1*T_c[int((i)/2)],(i+2),(i)] for i in range(0,2*L-2,2)] # hopping to the left
-    int_list_a = [[-1*U,i_middle,i_middle]] # onsite interaction
+    hop_right_a = [[-1*T_c[int((i)/2)],(i+2),i] for i in range(0,2*L-2,2)] # hopping to the left
+    int_list_a = [[-1*U,i_middle-1,i_middle-1]] # onsite interaction
     eps_list_a=[[-1*eps[int((i)/2)],i] for i in range(0,2*L,2)]
     # static and dynamic lists
     static= [	
@@ -184,8 +187,6 @@ def differential_rho_T(t,rho_nT):
     print('rho_n',rho_n)
     return L_static.rdot(rho_n)
     #return rho_n_T@L_static_csr.T
-    
-
 
 
 def exact_Diagonalization(L_static):
@@ -287,16 +288,36 @@ def a(i,rho,basis,leftVacuum):
         i_middle=L+1
 
     index=i_middle+2*i
-    n_list=[[1+0j,index]]
+    a_list=[[1+0j,index]]
     
     static=[
-        ["n|", n_list],
-        ["|n", n_list],
+        ["-|", a_list],
+        ["|-", a_list],
         ]
     dynamic = []
     
-    n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
-    return n_operator
+    a_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    return a_operator
+
+def a_dag(i,rho,basis,leftVacuum):
+    #i counts from the middle
+    if L%2:
+        i_middle=L
+    #even
+    else:
+        i_middle=L+1
+
+    index=i_middle+2*i
+    adag_list=[[1+0j,index]]
+    
+    static=[
+        ["+|", adag_list],
+        ["|+", adag_list],
+        ]
+    dynamic = []
+    
+    adag_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    return adag_operator
 
 # %%
 #calculate the Lindbladoperator
@@ -310,9 +331,27 @@ rho_inf=lowestEV(L_static)
 
 # %%
 
-def G_r():
+def G_r(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
+    t=np.linspace(0,tf,int(tf/dt)+1)
     rho=L_static.evolve(rho0T[0],0,t)
-
+    #rho_end=rho[:,-1]
+    rho_end=rho_inf[:,0]
+    a_op=a(i,rho,basis,leftVacuum)
+    adag_op=a_dag(i,rho,basis,leftVacuum)
+    
+    rho_a=a_op.dot(rho_end)
+    rho_adag=adag_op.dot(rho_end)
+    
+    Tau=np.linspace(0,Tf,int(Tf/dt)+1)
+    
+    rhoTau_a=L_static.evolve(rho_a,0,Tau)
+    rhoTau_adag=L_static.evolve(rho_adag,0,Tau)
+    
+    G1=leftVacuum.H@(adag_op.dot(rhoTau_a))
+    G2=leftVacuum.H@(a_op.dot(rhoTau_adag))
+    
+    return Tau, -1j*(np.conj(G1)+G2)*np.heaviside(Tau,0.5)
+    
 #initial rho
 rho0=leftVacuum
 
@@ -339,12 +378,46 @@ print('n_analytic',2*Gamma2[0]/(Gamma1[0]+Gamma2[0]))
 
 n_exp=expectationValue(0,'n',rho,basis,leftVacuum)
 
+#plt.figure()
+#plt.title('time dependence of n0')
+#plt.plot(t,n_exp)
+
+
+#calculate retarted Green's function
+Tau,GR_Tau=G_r(1,3e2,basis,leftVacuum,L_static,i=0,dt=0.01)
+
 plt.figure()
-plt.title('time dependence of n0')
-plt.plot(t,n_exp)
+plt.title('GR')
+plt.plot(Tau,GR_Tau[0])
 
 
+N_Tau=len(Tau)
+T=abs(Tau[-1]-Tau[0])
+norm=T/N_Tau#/np.sqrt(2*np.pi)
 
+#FT of retarted Green's function
+omegas=np.fft.fftfreq(N_Tau,Tau[1]-Tau[0])*2*np.pi
+omegas=np.fft.fftshift(omegas)
+G_r=np.fft.ifft(GR_Tau[0],norm='forward')*norm
+G_r=np.fft.fftshift(G_r)
+
+
+spectrum=(-1)/np.pi*np.imag(G_r)
+#%%
+N_start=0
+plt.figure()
+plt.title('spectral function')
+print(len(omegas))
+start=14000
+end=16000
+#plt.plot(Tau[N_start:],np.real(G_r[N_start:]),label='real')
+#plt.plot(omegas,np.imag(G_r[N_start:]),label='imaginary')
+print(spectrum[-1])
+plt.plot(omegas[start:end],spectrum[start:end],label='spectralfunction')
+plt.plot(omegas[start:end],0*omegas[start:end])
+#plt.axvline(1,0,1)
+plt.legend()
+print('norm',np.trapz(spectrum,x=omegas))
 #rho=scipy.integrate.solve_ivp(differential_rho_T,(t0,tf),rho_0T[0]+0j,method='RK45',t_eval=t)
 #rho=rho['y']
 #print('type: ',type(rho0T))
@@ -361,7 +434,7 @@ plt.plot(t,n_exp)
 #rho=rho['y']
 
 
-
+#for testing Greensfunction, we use fixed t for now
 
 
 
