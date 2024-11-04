@@ -16,8 +16,11 @@ import matplotlib.pyplot as plt
 L=3# system size
 center=int(np.floor(L/2))
 T=(np.sqrt(1.0)*np.ones(L)+0j)*0.5#hopping right
-U=2
+U=5
+V=0
+Om=0
 eps=-U/2 #onsite energy
+eps=[0,-U/2,0]
 #eps=0
 Gamma1=np.ones(L)*0.5
 Gamma1[center]=0
@@ -29,7 +32,10 @@ Gamma2[center]=0
 basis = spinful_fermion_basis_1d(2*L)
 
 # %%
-def defineH_super(L,T,U,eps,basis):
+def drive(t,Om):
+    return np.cos(Om*t)
+
+def defineH_super(L,T,U,eps,basis,V=0,Om=0):
     if np.isscalar(T):
         T=np.ones(L)*T
     if np.isscalar(eps):
@@ -49,6 +55,7 @@ def defineH_super(L,T,U,eps,basis):
     hop_right = [[T_c[int((i-1)/2)],(i+2),i] for i in range(1,2*L-2,2)] # hopping to the left
     int_list = [[U,i_middle,i_middle]] # onsite interaction
     eps_list=[[eps[int((i-1)/2)],i] for i in range(1,2*L,2)]
+    
     
     #Hamiltonian acting on augmented Fockspace  
     hop_left_a = [[-1*T[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
@@ -76,8 +83,20 @@ def defineH_super(L,T,U,eps,basis):
             ["n|", eps_list_a], # onsite energy
             ["|n", eps_list_a], # onsite energy
     		]
-    
-    dynamic=[]
+    if V:
+        drive_args=[Om]
+        V_list = [[V,i_middle]]
+        V_list_a = [[-1*V,i_middle-1]]
+        dynamic= [
+            ["n|", V_list,drive,drive_args], # onsite energy
+            ["|n", V_list,drive,drive_args], # onsite energy
+            ["n|", V_list_a,drive,drive_args], # onsite energy
+            ["|n", V_list_a,drive,drive_args], # onsite energy
+            ]
+            
+        
+    else:
+        dynamic=[]
     ###### construct Hamiltonian
     return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis)
 
@@ -132,7 +151,7 @@ def define_Dissipators2(L,Gamma2,basis):
 
     return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False)
 
-def get_Lindbladoperator(L,T,U,eps,Gamma1,Gamma2,basis=0):
+def get_staticLindblad(L,T,U,eps,Gamma1,Gamma2,basis=0):
     if basis==0:
         basis=spinful_fermion_basis_1d(2*L)
         print('not using symmetries')
@@ -142,6 +161,17 @@ def get_Lindbladoperator(L,T,U,eps,Gamma1,Gamma2,basis=0):
 
     #return -1j*H_super+D1+D2
     return H_super+1j*(D1+D2)  # multiply by -i due to .evolve structure
+
+def get_dynamicLindblad(L,T,U,eps,V,Om,Gamma1,Gamma2,basis=0):
+    if basis==0:
+        basis=spinful_fermion_basis_1d(2*L)
+        print('not using symmetries')
+    H_super=defineH_super(L,T,U,eps,basis,V,Om)
+    D1=define_Dissipators1(L,Gamma1,basis)
+    D2=define_Dissipators2(L,Gamma2,basis)
+
+    #return -1j*H_super+D1+D2
+    return H_super+1j*(D1+D2)
 
 def get_leftVacuum(L_static):
     basis=L_static.basis
@@ -279,7 +309,7 @@ def n(i,rho,basis,leftVacuum):
     n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
     return n_operator
 
-def a(i,rho,basis,leftVacuum):
+def a(i,basis):
     #i counts from the middle
     if L%2:
         i_middle=L
@@ -299,7 +329,7 @@ def a(i,rho,basis,leftVacuum):
     a_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
     return a_operator
 
-def a_dag(i,rho,basis,leftVacuum):
+def a_dag(i,basis):
     #i counts from the middle
     if L%2:
         i_middle=L
@@ -321,7 +351,8 @@ def a_dag(i,rho,basis,leftVacuum):
 
 # %%
 #calculate the Lindbladoperator
-L_static=get_Lindbladoperator(L,T,U,eps,Gamma1,Gamma2,basis)
+L_static=get_staticLindblad(L,T,U,eps,Gamma1,Gamma2,basis)
+L_dynamic=get_dynamicLindblad(L,T,U,eps,V,Om,Gamma1,Gamma2,basis)
 print('define left vacuum')
 leftVacuum=get_leftVacuum(L_static)
 
@@ -333,19 +364,21 @@ rho_inf=lowestEV(L_static)
 
 def G_r(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
     t=np.linspace(0,tf,int(tf/dt)+1)
-    rho=L_static.evolve(rho0T[0],0,t)
-    #rho_end=rho[:,-1]
-    rho_end=rho_inf[:,0]
-    a_op=a(i,rho,basis,leftVacuum)
-    adag_op=a_dag(i,rho,basis,leftVacuum)
+    rho=Lindblatt.evolve(rho0T[0],0,t)
+    #print(rho)
+    rho_end=rho[:,-1]
+    #rho_end=rho_inf[:,0]
+    
+    a_op=a(i,basis)
+    adag_op=a_dag(i,basis)
     
     rho_a=a_op.dot(rho_end)
     rho_adag=adag_op.dot(rho_end)
     
     Tau=np.linspace(0,Tf,int(Tf/dt)+1)
     
-    rhoTau_a=L_static.evolve(rho_a,0,Tau)
-    rhoTau_adag=L_static.evolve(rho_adag,0,Tau)
+    rhoTau_a=Lindblatt.evolve(rho_a,0,Tau)
+    rhoTau_adag=Lindblatt.evolve(rho_adag,0,Tau)
     
     G1=leftVacuum.H@(adag_op.dot(rhoTau_a))
     G2=leftVacuum.H@(a_op.dot(rhoTau_adag))
@@ -384,7 +417,7 @@ n_exp=expectationValue(0,'n',rho,basis,leftVacuum)
 
 
 #calculate retarted Green's function
-Tau,GR_Tau=G_r(1,3e2,basis,leftVacuum,L_static,i=0,dt=0.01)
+Tau,GR_Tau=G_r(5e2,3e2,basis,leftVacuum,L_dynamic,i=0,dt=0.01)
 
 plt.figure()
 plt.title('GR')
@@ -392,8 +425,8 @@ plt.plot(Tau,GR_Tau[0])
 
 
 N_Tau=len(Tau)
-T=abs(Tau[-1]-Tau[0])
-norm=T/N_Tau#/np.sqrt(2*np.pi)
+Period=abs(Tau[-1]-Tau[0])
+norm=Period/N_Tau#/np.sqrt(2*np.pi)
 
 #FT of retarted Green's function
 omegas=np.fft.fftfreq(N_Tau,Tau[1]-Tau[0])*2*np.pi
@@ -407,9 +440,11 @@ spectrum=(-1)/np.pi*np.imag(G_r)
 N_start=0
 plt.figure()
 plt.title('spectral function')
+txt='V='+str(V)+'  Om='+str(Om)+'  U='+str(U)+'  T='+str(T[0])+'  G='+str(Gamma1[0])
+plt.figtext(0.5, 0.01, txt, wrap=True, horizontalalignment='center', fontsize=12)
 print(len(omegas))
-start=14000
-end=16000
+start=14500
+end=15500
 #plt.plot(Tau[N_start:],np.real(G_r[N_start:]),label='real')
 #plt.plot(omegas,np.imag(G_r[N_start:]),label='imaginary')
 print(spectrum[-1])
