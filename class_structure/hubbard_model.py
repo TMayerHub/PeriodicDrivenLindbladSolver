@@ -8,12 +8,15 @@ Created on Mon May 22 14:59:40 2023
 
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import spinful_fermion_basis_1d
+from quspin.basis import spinful_fermion_basis_general
+from augmented_basis import augmented_basis
 import numpy as np # generic math functions
 import scipy
 import matplotlib.pyplot as plt
+
 # %%
 ##### define model parameters #####
-L=1# system size
+L=3# system size
 center=int(np.floor(L/2))
 T=(np.sqrt(1.0)*np.ones(L)+0j)*0.5#hopping right
 U=0
@@ -22,16 +25,20 @@ Om=1
 #eps=-U/2 #onsite energy
 #eps=[0,-U/2,0]
 eps=0
-Gamma1=np.ones(L)*0.05
-#Gamma1[center]=0
+Gamma1=np.ones(L)*0.5
+Gamma1[center]=0
 #Gamma1=[0,0,0.1]
-Gamma2=np.ones(L)*0.05
-#Gamma2[center]=0
+Gamma2=np.ones(L)*0.5
+Gamma2[center]=0
 #Gamma2=[0.1,0,0]
+
+
 #total lenght is N=4L, due to spin up and down
-basis = spinful_fermion_basis_1d(2*L)
+#basis = spinful_fermion_basis_general(2*L,simple_symm=False)
+basis = augmented_basis(L,'extended')
+#print(basis)
 #basis = spinful_fermion_basis_1d(2*L)
-print(basis)
+#print(basis)
 # %%
 def drive(t,Om):
     return np.cos(Om*t)
@@ -41,7 +48,11 @@ def defineH_super(L,T,U,eps,basis,V=0,Om=0):
         T=np.ones(L)*T
     if np.isscalar(eps):
         eps=np.ones(L)*eps
-        
+    
+    if len(T) == L:
+        T=np.concatenate((T,T))
+    if len(eps) == L:
+        eps=np.concatenate((eps,eps))
     T_c=np.conjugate(T)
     #i_middle=int(np.floor(L/2))
     #odd
@@ -51,109 +62,109 @@ def defineH_super(L,T,U,eps,basis,V=0,Om=0):
     else:
         i_middle=L+1
     
+    
     #Hamiltonian acting on Fockspace (Fockspace are the odd sites)  
-    hop_left = [[T[int((i-1)/2)],i,(i+2)] for i in range(1,2*L-2,2)] # hopping to the right
-    hop_right = [[T_c[int((i-1)/2)],(i+2),i] for i in range(1,2*L-2,2)] # hopping to the left
-    int_list = [[U,i_middle,i_middle]] # onsite interaction
-    eps_list=[[eps[int((i-1)/2)],i] for i in range(1,2*L,2)]
+    hop_left_up = [[T[int((i-1)/2)],i,(i+2)] for i in range(1,2*L-2,2)] 
+    hop_left_down = [[T[int((i-1)/2)],i,(i+2)] for i in range(2*L+1,4*L-2,2)]
+    #hop_left=np.concatenate((hop_left_up,hop_left_down))
+    hop_left=hop_left_up+hop_left_down
 
+    # hopping to the right
+    hop_right_up = [[T_c[int((i-1)/2)],(i+2),i] for i in range(1,2*L-2,2)]  # hopping to the left
+    hop_right_down= [[T_c[int((i-1)/2)],(i+2),i] for i in range(2*L+1,4*L-2,2)]
+    #hop_right=np.concatenate((hop_right_up,hop_right_down))
+    hop_right=hop_right_up+hop_right_down
+    
+    int_list = [[U,i_middle,i_middle+2*L]] # onsite interaction
+    eps_list=[[eps[int((i-1)/2)],i] for i in range(1,4*L,2)]
+    
     
     #Hamiltonian acting on augmented Fockspace  
-    hop_left_a = [[-1*T[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
-    hop_right_a = [[-1*T_c[int((i)/2)],(i+2),i] for i in range(0,2*L-2,2)] # hopping to the left
-    int_list_a = [[-1*U,i_middle-1,i_middle-1]] # onsite interaction
-    eps_list_a=[[-1*eps[int((i)/2)],i] for i in range(0,2*L,2)]
+    hop_left_up_a = [[-1*T[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
+    hop_left_down_a = [[-1*T[int((i)/2)],i,(i+2)] for i in range(2*L,4*L-2,2)]
+    hop_left_a=hop_left_up_a+hop_left_down_a
+
+    hop_right_up_a = [[-1*T_c[int((i)/2)],(i+2),i] for i in range(0,2*L-2,2)] # hopping to the left
+    hop_right_down_a = [[-1*T_c[int((i)/2)],(i+2),i] for i in range(2*L,4*L-2,2)]
+    hop_right_a=hop_right_up_a+hop_right_down_a
+
+    
+    
+    int_list_a = [[-1*U,i_middle-1,i_middle-1+2*L]] # onsite interaction
+    eps_list_a=[[-1*eps[int((i)/2)],i] for i in range(0,4*L,2)]
     # static and dynamic lists
     static= [	
             #Hamiltonian acting on Fockspace
             
-    		["+-|", hop_left], # up hop left
-    		["+-|", hop_right], # up hop right
-    		["|+-", hop_left], # down hop left
-    		["|+-", hop_right], # down hop right
-    		["n|n", int_list], # onsite interaction
-            ["n|", eps_list], # onsite energy
-            ["|n", eps_list], # onsite energy
+    		["+-", hop_left], # up hop left
+    		["+-", hop_right], # up hop right
+    		["nn", int_list], # onsite interaction
+            ["n", eps_list], # onsite energy
             
             #Hamiltonian acting on augmented Fockspace
-    		["+-|", hop_left_a], # up hop left
-    		["+-|", hop_right_a], # up hop right
-    		["|+-", hop_left_a], # down hop left
-    		["|+-", hop_right_a], # down hop right
-    		["n|n", int_list_a], # onsite interaction
-            ["n|", eps_list_a], # onsite energy
-            ["|n", eps_list_a], # onsite energy
+    		["+-", hop_left_a], # up hop left
+    		["+-", hop_right_a], # up hop right
+    		["nn", int_list_a], # onsite interaction
+            ["n", eps_list_a], # onsite energy
     		]
-    print(static)  
-    
+    #print(static)
     if V:
         drive_args=[Om]
-        V_list = [[V,i_middle]]
-        V_list_a = [[-1*V,i_middle-1]]
+        V_list = [[V,i_middle],[V,i_middle+2*L]]
+        V_list_a = [[-1*V,i_middle-1],[-1*V,i_middle-1+2*L]]
         dynamic= [
-            ["n|", V_list,drive,drive_args], # onsite energy
-            ["|n", V_list,drive,drive_args], # onsite energy
-            ["n|", V_list_a,drive,drive_args], # onsite energy
-            ["|n", V_list_a,drive,drive_args], # onsite energy
+            ["n", V_list,drive,drive_args], # onsite energy
+            ["n", V_list_a,drive,drive_args], # onsite energy
             ]
- 
-             
+            
         
     else:
         dynamic=[]
     ###### construct Hamiltonian
-    return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis)
+    return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_pcon=False,check_symm=False,check_herm=False)
 
 #removes particels from the system
 def define_Dissipators1(L,Gamma1,basis):
+    if len(Gamma1) == L:
+        Gamma1=np.concatenate((Gamma1,Gamma1))
     #mixed Fock and augmented
-    part1 = [[-2j*Gamma1[int(i/2)],(i+1),i] for i in range(0,2*L,2)]
+    part1 = [[-2j*Gamma1[int(i/2)],(i+1),i] for i in range(0,4*L,2)]
     #Fock
-    part2 = [[-1*Gamma1[int((i-1)/2)],i,i] for i in range(1,2*L,2)]
+    part2 = [[-1*Gamma1[int((i-1)/2)],i,i] for i in range(1,4*L,2)]
     #augmented
-    part3 = [[-1*Gamma1[int((i)/2)],i,i] for i in range(0,2*L,2)]
+    part3 = [[-1*Gamma1[int((i)/2)],i,i] for i in range(0,4*L,2)]
     
     
     
     
     static=[
-        #spin up
-        ["--|",part1],
-        ["+-|",part2],
-        ["+-|",part3],
-        #spin down
-        ["|--",part1],
-        ["|+-",part2],
-        ["|+-",part3],   
+        ["--",part1],
+        ["+-",part2],
+        ["+-",part3],  
         ]
     dynamic=[]
-    return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False)
+    return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_pcon=False,check_symm=False)
 
 #add particels to the system
 def define_Dissipators2(L,Gamma2,basis):
+    if len(Gamma2) == L:
+        Gamma2=np.concatenate((Gamma2,Gamma2))
     #mixed
-    part1 = [[-2j*Gamma2[int(i/2)],(i+1),(i)] for i in range(0,2*L,2)]
+    part1 = [[-2j*Gamma2[int(i/2)],(i+1),(i)] for i in range(0,4*L,2)]
     #fock
-    part2 = [[-1*Gamma2[int((i-1)/2)],i,i] for i in range(1,2*L,2)]
+    part2 = [[-1*Gamma2[int((i-1)/2)],i,i] for i in range(1,4*L,2)]
     #augmented
-    part3 = [[-1*Gamma2[int((i)/2)],i,i] for i in range(0,2*L,2)]
+    part3 = [[-1*Gamma2[int((i)/2)],i,i] for i in range(0,4*L,2)]
     
     static=[
-        #spin up
-        ["++|",part1],
-        ["-+|",part2],
-        ["-+|",part3],
-        #["|",part4],
-        #spin down
-        ["|++",part1],
-        ["|-+",part2],
-        ["|-+",part3],
-        #["|",part4]
+        ["++",part1],
+        ["-+",part2],
+        ["-+",part3],
         ]
     
     dynamic=[]
 
-    return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False)
+    return hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_pcon=False,check_symm=False)
 
 def get_staticLindblad(L,T,U,eps,Gamma1,Gamma2,basis=0):
     if basis==0:
@@ -182,23 +193,23 @@ def get_leftVacuum(L_static):
     states=basis.states
     data=[]
     row_ind=[]
-    #define a mask for even and odd states       
-    mask_even=int('01'*(4*L//2),2)
-    mask_odd=mask_even << 1 
+    #define a mask for even and odd states  
+    shitf_1= np.uint64(1)    
+    mask_even=np.uint64(int('01'*(4*L//2),2))
+    mask_odd=mask_even << shitf_1
     for state in states:
-        print('state')
-        print(type(state))
         #print(bin(mask_odd))
         even_bits=state&mask_even
-        odd_bits=(state&mask_odd) >> 1
+        odd_bits=(state&mask_odd) >> shitf_1
             
         if(even_bits==odd_bits):
+            #print(format(state,'0{}b'.format(4*L)))
             #shifting 2*L to the right => only the 2*L leftmost remain
-            spin_up=state >> 2*L
+            spin_up=state >> np.uint64(2*L)
             #masking the left part of the state
-            spin_down=state & 2**(2*L)-1
-            k=basis.index(format(spin_up,'0{}b'.format(2*L)),\
-                          format(spin_down,'0{}b'.format(2*L)))
+            spin_down=state & np.uint64(2**(2*L)-1)
+            #k=basis.index(format(spin_up,'0{}b'.format(2*L)),format(spin_down,'0{}b'.format(2*L)))
+            k=basis.index(format(state,'0{}b'.format(4*L)))
             n=int(int(state).bit_count()/2)
             data.append((-1j)**n)
             row_ind.append(k)
@@ -209,9 +220,6 @@ def get_leftVacuum(L_static):
     data=np.array(data)
     #create csr matrix
     leftVacuum=scipy.sparse.csr_matrix((data,(row_ind,col_ind)),shape=(basis.Ns,1))
-    print(leftVacuum.shape)
-    print(leftVacuum)
-
     norm=np.sqrt(leftVacuum.H@leftVacuum)
     leftVacuum=leftVacuum/norm[0,0]
     return leftVacuum
@@ -312,15 +320,15 @@ def n(i,basis):
         i_middle=L+1
 
     index=i_middle+2*i
-    n_list=[[1+0j,index]]
+    n_list=[[1+0j,index],[1+0j,index+2*L]]
+    n_list=[[1+0j,index+2*L]]
     
     static=[
-        ["n|", n_list],
-        #["|n", n_list],
+        ["n", n_list],
         ]
     dynamic = []
-    
-    n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    #print(static)
+    n_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False,check_pcon=False)
     return n_operator
 
 def a(i,basis):
@@ -332,15 +340,15 @@ def a(i,basis):
         i_middle=L+1
 
     index=i_middle+2*i
-    a_list=[[1+0j,index]]
+    a_list=[[1+0j,index],[1+0j,index+2*L]]
+    a_list=[[1+0j,index+2*L]]
     
     static=[
-        ["-|", a_list],
-        #["|-", a_list],
+        ["-", a_list],
         ]
     dynamic = []
     
-    a_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    a_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False,check_pcon=False)
     return a_operator
 
 def a_dag(i,basis):
@@ -352,15 +360,15 @@ def a_dag(i,basis):
         i_middle=L+1
 
     index=i_middle+2*i
-    adag_list=[[1+0j,index]]
+    adag_list=[[1+0j,index],[1+0j,index+2*L]]
+    adag_list=[[1+0j,index+2*L]]
     
     static=[
-        ["+|", adag_list],
-        #["|+", adag_list],
+        ["+", adag_list],
         ]
     dynamic = []
     
-    adag_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False)
+    adag_operator=hamiltonian(static,dynamic,dtype=np.complex128,basis=basis,check_herm=False,check_symm=False,check_pcon=False)
     return adag_operator
 
 # %%
@@ -370,26 +378,26 @@ L_dynamic=get_dynamicLindblad(L,T,U,eps,V,Om,Gamma1,Gamma2,basis)
 print(L_dynamic.Ns)
 print('define left vacuum')
 leftVacuum=get_leftVacuum(L_static)
-
+#rint(leftVacuum)
+#print(leftVacuum.indices)
+check_left=leftVacuum.toarray()
+for row in range(len(check_left)):
+    if not(check_left[row,0]==0):
+        #print(element.indices)
+        print(row)
+        print(basis[row])
+        print(format(2**(4*L)-row-1,'0{}b'.format(4*L)))
+        print(basis.int_to_state(basis[row]))
+print(len(check_left))
+print(2**(4*L))
+print(basis.Ns)
 print('calculate EV')
 #vl0,rho_inf=exact_Diagonalization(L_static)
 rho_inf=lowestEV(L_static)
-a_op=a(0,basis)
-adag_op=a_dag(0,basis)
-n_op=n(0,basis)
-for state in range(15):
-    state_array=np.zeros((16,1))
-    state_array[15-state]=1
-    print(basis.int_to_state(state))
-    state_a=a_op.dot(state_array)
-    index = np.nonzero(state_a)[0] 
-    print(index)
-    if len(index)==0:
-        print(0)
-    else:
-        print(basis.int_to_state(15-index[0]),state_a[index])
-    print()
 
+#vl0,r=exact_Diagonalization(L_static)
+#print('compare Vacuum')
+#compareVectors(vl0,leftVacuum)
 # %%
 
 def G_r(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
@@ -500,7 +508,7 @@ def Gr_floquet(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
 
 #initial rho
 rho0=leftVacuum
-
+#print(L_static.dot(leftVacuum))
 
 #calculate timeevolution of rho
 t0=0
@@ -514,9 +522,12 @@ rho0T=rho0.T.toarray()
 rho=L_static.evolve(rho0T[0],0,t)
 rho_end=rho[:,-1]
 #n_exp=n(0,rho_end,basis,leftVacuum)
+#rho_inf[rho_inf < 0.0001] = 0
+#print(scipy.sparse.csr_array(rho_inf))
 n_exp=expectationValue(0,'n',rho_end,basis,leftVacuum)
 
 n_inf=expectationValue(0,'n',rho_inf,basis,leftVacuum)
+
 
 print('n_time evolved: ',n_exp)
 print('n_inf',n_inf)
@@ -531,8 +542,8 @@ n_exp=expectationValue(0,'n',rho,basis,leftVacuum)
 
 #calculate retarted Green's function
 #Tau,GR_Tau=Gr_floquet1(3e2,3e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
-Tau,GR_Tau=Gr_floquet1(3e2,3e3,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
-T#au,GR_Tau=G_r(3e2,3e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
+Tau,GR_Tau=Gr_floquet1(3e2,5e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
+#Tau,GR_Tau=G_r(3e2,3e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
 
 
 plt.figure()
@@ -559,8 +570,8 @@ plt.title('spectral function')
 txt='V='+str(V)+'  Om='+str(Om)+'  U='+str(U)+'  T='+str(T[0])+'  G='+str(Gamma1[0])
 plt.figtext(0.5, 0.01, txt, wrap=True, horizontalalignment='center', fontsize=12)
 print('len omegas:',len(omegas))
-start=2500
-end=3500
+start=2000
+end=5000
 #plt.plot(Tau[N_start:],np.real(G_r[N_start:]),label='real')
 #plt.plot(omegas,np.imag(G_r[N_start:]),label='imaginary')
 print(spectrum[-1])
