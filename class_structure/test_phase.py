@@ -12,6 +12,7 @@ from augmented_basis import to_extended_vector
 from augmented_basis import to_reduced_vector
 from quspin.operators import hamiltonian
 from quspin.basis import spinful_fermion_basis_general
+import augmented_basis as ab
 import numpy as np
 
 @jit(int64(int64,int64),locals=dict(),nopython=True,nogil=True)
@@ -54,14 +55,41 @@ def _count_total_particles_64(state):
     # Return the result after shifting right by 56 bits
     return f_count & np.uint64(0x7F)
 
-def pre_check_state2(N,s,args):
-    diff_up=args[1]
-    diff_down=args[2]
-    #get all the even bits (starting from back, so fock space)
-    norm_space=s&np.uint64(0x5555555555555555)
-    #get all the odd bits (starting from back so augmented space)
-    augmented_space=s&np.uint64(0xAAAAAAAAAAAAAAAA)
-    return args[0]==0 or _count_total_particles_64(norm_space) == diff_up+_count_total_particles_64(augmented_space)
+def pre_check_state_sector(s,N,args):
+        ''''''
+        
+        
+        #get all the even bits (odd sites)
+        ##augmented_space=s&uint64(0x5555555555555555)
+        #get all the odd bits (even sites)
+        ##norm_space=s&uint64(0xAAAAAAAAAAAAAAAA)
+        #shifting 2*L to the right => only the 2*L leftmost remain
+        ##spin_up=norm_space >> np.uint64(2*L)
+        #masking the left part of the state
+        ##spin_down=norm_space & np.uint64(2**(2*L)-1)
+        L=int(N/4)
+        #0101010
+        print(args[-1])
+        for i in range(0,args[-1],2):
+            print(i)
+            diff_up=args[i]
+            diff_down=args[i+1]
+            norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
+            norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
+            
+            #101010
+            augmented_space_up=(s&uint64(0xAAAAAAAAAAAAAAAA))>>np.uint64(2*L)
+            augmented_space_down=(s&uint64(0xAAAAAAAAAAAAAAAA))& np.uint64(2**(2*L)-1)
+    
+            equal_up=_count_total_particles_64(norm_space_up) == (diff_up+_count_total_particles_64(augmented_space_up))
+            print(equal_up)
+            equal_down=_count_total_particles_64(norm_space_down) == (diff_down+_count_total_particles_64(augmented_space_down))
+            print(equal_down)
+            if equal_up and equal_down:
+                print('equal')
+                return True
+            
+        return False
     
 def n(i,basis):
     #i counts from the middle
@@ -172,26 +200,50 @@ def test_operators(user_basis,general_basis,site):
                 print()
                 
 L=1
-user_basis=augmented_basis(L,'1sector',[0,0])
-general_basis = spinful_fermion_basis_general(2*L,simple_symm=False)
+user_basis=augmented_basis(L,spin_sym=True)
+#print(user_basis)
+user_basis=augmented_basis(L,'restricted',[1,0,0,1])
+user_basis_sym=augmented_basis(L,'restricted',[1,0,0,1],spin_sym=True)
+print(user_basis)
+print(user_basis_sym)
+
+
+
+user_basis=augmented_basis(L,'restricted',[-1,0])
+print('-1')
+print(user_basis)
+
+user_basis=augmented_basis(L,'restricted',[1,0])
+print('+1')
+print(user_basis)
+
+print(user_basis.blocks)
+general_basis = spinful_fermion_basis_general(2*L,simple_symm=True)
+print(general_basis.blocks)
 #%%
 site=3
 #test_operators(user_basis,general_basis,site)
 print(user_basis)
-args=[1,0,0]
-
-#for state in user_basis:
-    #print('loop')
-    #print(user_basis.int_to_state(state))
+print(user_basis.diff_sector)
+args=[1,0]
+args.append(len(args))
+print('args: ',args)
+args=np.array(args, dtype=np.uint64) 
+user_basis=augmented_basis(L)
+for state in user_basis:
+    print(user_basis.int_to_state(state))
     #print(user_basis.index(state))
-    #print(pre_check_state(2*L, state, args))
-    #print(pre_check_state2(2*L, state, args))
+     
+    print(ab.pre_check_state_sector1(state, 4*L, args))
+    
+user_basis=augmented_basis(L,'restricted',[1,0,1,0])
+print(user_basis)
 
 extended_basis=augmented_basis(L,'extended')
 state_vector1=np.zeros(user_basis.Ns)
 
 state_vector1[0]=1
-state_vector1[3]=1
+#state_vector1[2]=1
 print(state_vector1)
 extended1=to_extended_vector(state_vector1,user_basis,extended_basis)
 state_vector2=np.array([state_vector1])
@@ -201,7 +253,6 @@ print(state_vector3.shape)
 extended3=to_extended_vector(state_vector3,user_basis,extended_basis)
 print(extended1)
 print(to_reduced_vector(extended1,user_basis,extended_basis))
-
 
 
 

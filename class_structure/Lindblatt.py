@@ -9,20 +9,28 @@ Created on Thu Nov 28 14:48:02 2024
 import warnings
 
 import numpy as np
+import scipy
 
 from quspin.operators import hamiltonian
 
-class Lindblad:
+def custom_formatwarning(message, category, filename, lineno, line=None):
+    return f"{filename}:{lineno}: {category.__name__}: {message}\n"
+
+# Apply the custom formatter
+warnings.formatwarning = custom_formatwarning
+
+class createLindblad:
     def __init__(self,basis,parameters,spin_sym=False):
         self.parameters = parameters
         self.basis = basis
         
-        self.L = parameters["sites"]
+        self.L = self.require_parameter('sites')
         self.eps = parameters["epsilon"]
         self.T = parameters["hopping"]
         self.U = parameters["interaction"]
         self.V = parameters["drive"]
         self.Om= parameters["frequency"]
+        
         self.Gamma1 = parameters["coupling_empty"]
         self.Gamma2= parameters["coupling_full"]
         self.spin_sym =spin_sym
@@ -30,22 +38,39 @@ class Lindblad:
         self.center = self.findCenter()
         self.check_parameters()
         
-        self.Hamiltonian = None
-        
+        self.diff_sector = basis.diff_sector
+        self.operator = self.get_dynamicLindblad()
+    
+    def require_parameter(self, key):
+        """
+        Retrieve a required parameter. Raise KeyError if missing.
+        """
+        if key not in self.parameters:
+            raise KeyError(f"Missing required parameter: '{key}'")
+        return self.parameters[key]
+
+    def optional_parameter(self, key):
+        """
+        Checks optional parameters and gives a warning if it is not set.
+        """
+        if key not in self.parameters:
+            warnings.warn(f'''Parameter {key} not set. Assumed to be 0 for all
+                          sites. ''')
+        return self.parameters[key]
         
 
     def findCenter(self):
         if self.L%2:
-            self.center=self.L
+            return self.L
         #even
         else:
-            self.center=self.L+1
+            return self.L+1
         
         
         
     def check_parameters(self):
-        if not(self.L == self.basis.N):
-            raise ValueError(f'the basis passed has {self.basis.N} not {self.L}')
+        if not(self.L == self.basis.N/4):
+            raise ValueError(f'the basis passed has {self.basis.N/4} not {self.L} sites')
         
         if np.isscalar(self.eps):
             if self.L == 1:
@@ -68,9 +93,10 @@ class Lindblad:
                 self.Gamma1 = [self.Gamma1]
             
             else:
-                self.Gamma1 = np.ones(self.L*2)*self.Gamma1
-                self.Gamma1[self.center]=0
-                self.Gamma1[2*self.L+self.center]=0
+                self.Gamma1 = np.ones(self.L)*self.Gamma1
+                ind0=int(np.floor(self.L/2))
+                self.Gamma1[ind0]=0
+                self.Gamma1=np.concatenate((self.Gamma1,self.Gamma1))
                 warnings.warn("""A scalar was passed for coupling to the empty bath, 
                               same coupling on every site (except for the central site
                                where gamma1 = 0)"""
@@ -81,26 +107,30 @@ class Lindblad:
                 self.Gamma2 = [self.Gamma2]
             
             else:
-                self.Gamma2 = np.ones(self.L*2)*self.Gamma2
-                self.Gamma2[self.center]=0
-                self.Gamma2[2*self.L+self.center]=0
+                self.Gamma2 = np.ones(self.L)*self.Gamma2
+                ind0=int(np.floor(self.L/2))
+                self.Gamma2[ind0]=0
+                self.Gamma2=np.concatenate((self.Gamma2,self.Gamma2))
                 warnings.warn("""A scalar was passed for coupling to the full bath, 
                               same coupling on every site (except for the central site
                                where gamma1 = 0)"""
                               ,category=UserWarning)
         
         sym = True
-        for parameter,name in zip([self.eps,self.T,self.Gamma1,self.Gamma2],
-                                  'epsilon','hopping','coupling_empty','couplfing_full'):
+        for parameter_name,name in zip(['eps', 'T', 'Gamma1', 'Gamma2'],
+                                       ['epsilon', 'hopping', 'coupling_empty', 'coupling_full']):
+            parameter = getattr(self, parameter_name)
             if not(len(parameter)==self.L or len(parameter)==2*self.L):
                    raise ValueError(f''''the lenght of the parameterlist for
                                     {name} has invalid length it should be a scalar
                                     L or 2L long''')
                                     
-            elif len(parameter)==self.L:
+            if len(parameter)==self.L:
                 parameter=np.concatenate((parameter,parameter))
+                
+                setattr(self, parameter_name, parameter)
             
-            elif len(parameter)==2*self.L:
+            if len(parameter)==2*self.L and not((parameter[:self.L]==parameter[self.L:]).all()):
                 sym = False
         
         if sym and not(self.spin_sym):
@@ -109,12 +139,27 @@ class Lindblad:
                           ,category=UserWarning)
             
         if not(sym) and self.spin_sym:
-                raise ValueError("""The Lindblad is not spin symmetric, use
+                raise ValueError("""The Lindbladoperator is not spin symmetric, use
                               complete spin basis instead""")
         
-                
-    @staticmethod()            
-    def drive(t,Om):
+    
+    def displayParameters(self):
+        print('parameters')
+        print('sites: ',self.L)
+        print()
+        print('0..L-1 act on spin up, L...2L-1 act on spin down')
+        print('epsilon:        ',self.eps)
+        print('hopping:        ',self.T)
+        print('coupling_empty: ',self.Gamma1)
+        print('coupling_full:  ',self.Gamma2)
+        print()
+        print('apply to central site only:')
+        print('interaction: ',self.U)
+        print('drive:       ',self.V)
+        print('frequency:   ',self.Om)
+
+    @staticmethod      
+    def drive_fun(t,Om):
         return np.cos(Om*t)
     
     def defineH_super(self):
@@ -170,8 +215,8 @@ class Lindblad:
             V_list = [[self.V,self.center],[self.V,self.center+2*L]]
             V_list_a = [[-1*self.V,self.center-1],[-1*self.V,self.center-1+2*L]]
             dynamic= [
-                ["n", V_list,self.drive,drive_args], # onsite energy
-                ["n", V_list_a,self.drive,drive_args], # onsite energy
+                ["n", V_list,self.drive_fun,drive_args], # onsite energy
+                ["n", V_list_a,self.drive_fun,drive_args], # onsite energy
                 ]
                 
             
@@ -228,12 +273,38 @@ class Lindblad:
         return H_super+1j*(D1+D2)  # multiply by -i due to .evolve structure
     
     def get_dynamicLindblad(self):
-        H_super=self.defineH_super(self)
-        D1=self.define_Dissipators1(self)
-        D2=self.define_Dissipators2(self)
+        H_super=self.defineH_super()
+        D1=self.define_Dissipators1()
+        D2=self.define_Dissipators2()
     
         #return -1j*H_super+D1+D2
         return H_super+1j*(D1+D2)
+    
+    def exact_Diagonalization(self):
+        L_static_csr=self.operator.as_sparse_format()
+        w,vl,vr=scipy.linalg.eig(L_static_csr.toarray(),left=True,right=True)
+        w_min=np.argmin(abs(w))
+
+        rho_inf=np.array([vr[:,w_min]]).T
+
+        #column vector
+        vl0=scipy.sparse.csc_array(np.transpose([vl[:,w_min]]))
+        
+        norm=vl0@rho_inf
+        rho_inf=rho_inf/norm
+        
+        return vl0,rho_inf
+
+    def lowestEV(self):
+        w,rho_inf=self.operator.eigsh(k=1,sigma=0)
+        print('w rho inf: ', w)
+        #print(leftVacuum.shape,rho_inf.shape)
+        #print(leftVacuum)
+        #print(rho_inf)
+        
+        #norm=leftVacuum.H@rho_inf
+        
+        return rho_inf#/norm
                 
                 
                 

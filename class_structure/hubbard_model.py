@@ -489,12 +489,16 @@ def Gr_floquet(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
         m=0
         for j in range(N_Tau-i,N_period+N_Tau-i):
             rho=rhos[:,j]
+            print(rho.shape)
             rho_a=a_op.dot(rho)
             rho_adag=adag_op.dot(rho)
             rhoTau_a=Lindblatt.evolve(rho_a,t[j],t[j]+Tau[i])
             rhoTau_adag=Lindblatt.evolve(rho_adag,t[j],t[j]+Tau[i])
+            print(rhoTau_a.shape)
             G1=leftVacuum.H@(adag_op.dot(rhoTau_a))
+            print(len(G1[0]))
             G2=leftVacuum.H@(a_op.dot(rhoTau_adag))
+            print(G1)
             Gr_t[m]=-1j*(np.conj(G1[0])+G2[0])*np.heaviside(Tau[i],0.5)
             m+=1
         #print(np.shape(Gr_t))
@@ -542,7 +546,7 @@ n_exp=expectationValue(0,'n',rho,basis,leftVacuum)
 
 #calculate retarted Green's function
 #Tau,GR_Tau=Gr_floquet1(3e2,3e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
-Tau,GR_Tau=Gr_floquet1(3e2,5e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
+Tau,GR_Tau=Gr_floquet(3e2,5e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
 #Tau,GR_Tau=G_r(3e2,3e2,basis,leftVacuum,L_dynamic,i=0,dt=0.05)
 
 

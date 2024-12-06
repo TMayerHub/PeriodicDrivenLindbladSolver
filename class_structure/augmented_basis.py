@@ -21,23 +21,22 @@ sys.path.insert(0,quspin_path)
 from quspin.basis.user import user_basis # Hilbert space user basis
 from quspin.basis.user import next_state_sig_64, pre_check_state_sig_64,op_sig_64,map_sig_64 # user basis data types signatures
 from numba import carray,cfunc,jit # numba helper functions
-from numba import uint32,int32, int64, uint64, complex128, boolean # numba data types
+from numba import int32,uint32,int64, uint64, boolean # numba data types
 import numpy as np
 from scipy.special import comb
-from scipy.sparse import diags
-import scipy
-from scipy import sparse
+
 from joblib import Parallel, delayed
-from itertools import permutations
+
 
 
 
 @cfunc(map_sig_64,
         locals=dict(s_up=uint64, s_down=uint64, ), )
-def spin_sym(s,N,sign_ptr,args):
-        s_down = s >> N//2
-        s_up = s & args[0]
-        return s >> N//2 | (s & args[0]) << N//2
+def _spin_sym(s,N,sign_ptr,args):
+        L2=int(N/2)
+        s_down = s & np.uint64(2**(L2)-1)
+        s_up = s>>np.uint64(L2)
+        return s_up| s_down << N//2
 
 
 @jit(int64(int64,int64),locals=dict(),nopython=True,nogil=True)
@@ -160,26 +159,82 @@ pcon_dict = dict(
 
 
 @cfunc(pre_check_state_sig_64,
-    locals=dict(diff_up=uint64,diff_down=uint64,norm_space = uint64, augmented_space = uint64),)
-def pre_check_state_sector(s,N,args):
-        '''still need to add that sectors hold seperatly for spin up and spin down as well (more restrictive)'''
-        diff_up=args[0]
-        diff_down=args[1]
-        #get all the even bits
-        norm_space=s&uint64(0x5555555555555555)
-        #get all the odd bits
-        augmented_space=s&uint64(0xAAAAAAAAAAAAAAAA)
+    locals=dict(diff_up=int64,diff_down=int64,norm_space_up = uint64, augmented_space_up = uint64,norm_space_down = uint64, 
+                augmented_space_down = uint64),)
+def pre_check_state_sector1(s,N,args):
+        ''''''
         
-
-        total_equal=_count_total_particles_64(norm_space) == (diff_up+_count_total_particles_64(augmented_space))
-        return total_equal
+        
+        #get all the even bits (odd sites)
+        ##augmented_space=s&uint64(0x5555555555555555)
+        #get all the odd bits (even sites)
+        ##norm_space=s&uint64(0xAAAAAAAAAAAAAAAA)
+        #shifting 2*L to the right => only the 2*L leftmost remain
+        ##spin_up=norm_space >> np.uint64(2*L)
+        #masking the left part of the state
+        ##spin_down=norm_space & np.uint64(2**(2*L)-1)
+        L=int(N/4)
+        #0101010
+        
+        for i in range(0,2,2):
+            diff_up=args[i]
+            diff_down=args[i+1]
+            norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
+            norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
+            
+            #101010
+            augmented_space_up=(s&uint64(0xAAAAAAAAAAAAAAAA))>>np.uint64(2*L)
+            augmented_space_down=(s&uint64(0xAAAAAAAAAAAAAAAA))& np.uint64(2**(2*L)-1)
+    
+            equal_up=_count_total_particles_64(norm_space_up) == (diff_up+_count_total_particles_64(augmented_space_up))
+            equal_down=_count_total_particles_64(norm_space_down) == (diff_down+_count_total_particles_64(augmented_space_down))
+            if equal_up and equal_down:
+                return True
+            
+        return False
+    
+@cfunc(pre_check_state_sig_64,
+    locals=dict(diff_up=int64,diff_down=int64,norm_space_up = uint64, augmented_space_up = uint64,norm_space_down = uint64, 
+                augmented_space_down = uint64),)
+def pre_check_state_sector2(s,N,args):
+        ''''''
+        
+        
+        #get all the even bits (odd sites)
+        ##augmented_space=s&uint64(0x5555555555555555)
+        #get all the odd bits (even sites)
+        ##norm_space=s&uint64(0xAAAAAAAAAAAAAAAA)
+        #shifting 2*L to the right => only the 2*L leftmost remain
+        ##spin_up=norm_space >> np.uint64(2*L)
+        #masking the left part of the state
+        ##spin_down=norm_space & np.uint64(2**(2*L)-1)
+        L=int(N/4)
+        #0101010
+        
+        for i in range(0,4,2):
+            diff_up=args[i]
+            diff_down=args[i+1]
+            norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
+            norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
+            
+            #101010
+            augmented_space_up=(s&uint64(0xAAAAAAAAAAAAAAAA))>>np.uint64(2*L)
+            augmented_space_down=(s&uint64(0xAAAAAAAAAAAAAAAA))& np.uint64(2**(2*L)-1)
+    
+            equal_up=_count_total_particles_64(norm_space_up) == (diff_up+_count_total_particles_64(augmented_space_up))
+            equal_down=_count_total_particles_64(norm_space_down) == (diff_down+_count_total_particles_64(augmented_space_down))
+            if equal_up and equal_down:
+                return True
+            
+        return False
 
 @cfunc(pre_check_state_sig_64,
     locals=dict(norm_space = uint64, augmented_space = uint64),)
 def pre_check_state_extended(s,N,args):
-        #get all the even bits
+        #odd sites 01010
         norm_space=s&uint64(0x5555555555555555)
-        #get all the odd bits
+        
+        #even sites 10101
         augmented_space=s&uint64(0xAAAAAAAAAAAAAAAA)
         
         
@@ -195,28 +250,59 @@ def pre_check_state_extended(s,N,args):
         
 #pre_check_state_args = np.array([1,0,0], dtype=np.uint64)    
 
-def augmented_basis(N,particle_sectors=None,sector=None):
+def augmented_basis(N,particle_sectors=None,sector=None,spin_sym=False):
     op_args=np.array([],dtype=np.uint64)
     op_dict=dict(op=op,op_args=op_args)
     noncommuting_bits = [(np.arange(N), -1)]
+    sym_args = np.array([], dtype=np.uint64)
+    maps = dict(spin_block=(_spin_sym, 2, -1/2, sym_args))
     if particle_sectors==None:
         #,noncommuting_bits=noncommuting_bits
         #pcon_dict=pcon_dict,
-        return user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"))
+        if spin_sym:
+            basis=user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),**maps)
+        else:
+            basis=user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"))
+        basis.sector_type = None
+        basis.diff_sector = sector
+        return basis
     
     if particle_sectors == 'extended':
         pre_check_state_args = np.array([], dtype=np.uint64) 
         pre_check_states = (
             pre_check_state_extended,
             pre_check_state_args)
-    
-    if particle_sectors == '1sector':
-        pre_check_state_args = np.array(sector, dtype=np.uint64)   
-        pre_check_states = (
-            pre_check_state_sector,
-            pre_check_state_args)
         
-    return user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),noncommuting_bits=noncommuting_bits,pre_check_state=pre_check_states)
+        #noncommuting_bits=noncommuting_bits,
+        if spin_sym:
+            basis= user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states,**maps)
+        else:
+            basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states)
+        basis.sector_type = 'extended'
+        basis.diff_sector = None
+        return basis
+    
+    if particle_sectors == 'restricted':
+        pre_check_state_args = np.array(sector, dtype=np.uint64) 
+        if len(sector)==2:
+            pre_check_states = (
+                pre_check_state_sector1,
+                pre_check_state_args)
+        if len(sector)==4:
+            pre_check_states = (
+                pre_check_state_sector2,
+                pre_check_state_args)
+        if spin_sym:
+            if len(sector)==2 and not((sector==[0,0])):
+                raise ValueError('Cannot define a spin symmetric basis with unsymmetric restrictions')
+            basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states,**maps)
+        else:
+            basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states)
+        basis.sector_type = 'restricted'
+        basis.diff_sector = sector
+        return basis
+        
+    #return user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),noncommuting_bits=noncommuting_bits,pre_check_state=pre_check_states)
 
 
 
