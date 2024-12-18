@@ -275,7 +275,7 @@ def augmented_basis(N,particle_sectors=None,sector=None,spin_sym=False):
         
         #noncommuting_bits=noncommuting_bits,
         if spin_sym:
-            basis= user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states,**maps)
+            basis= user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states,noncommuting_bits=noncommuting_bits,**maps)
         else:
             basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states)
         basis.sector_type = 'extended'
@@ -295,7 +295,7 @@ def augmented_basis(N,particle_sectors=None,sector=None,spin_sym=False):
         if spin_sym:
             if len(sector)==2 and not((sector==[0,0])):
                 raise ValueError('Cannot define a spin symmetric basis with unsymmetric restrictions')
-            basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states,**maps)
+            basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states,noncommuting_bits=noncommuting_bits,**maps)
         else:
             basis = user_basis(np.uint64, 4*N, op_dict, allowed_ops = set("+-nI"),pre_check_state=pre_check_states)
         basis.sector_type = 'restricted'

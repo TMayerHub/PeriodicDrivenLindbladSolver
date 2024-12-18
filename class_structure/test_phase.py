@@ -14,6 +14,7 @@ from quspin.operators import hamiltonian
 from quspin.basis import spinful_fermion_basis_general
 import augmented_basis as ab
 import numpy as np
+import scipy
 
 @jit(int64(int64,int64),locals=dict(),nopython=True,nogil=True)
 def _count_particles_64(state, site_ind):
@@ -199,11 +200,50 @@ def test_operators(user_basis,general_basis,site):
                 print(state_user[index,0],'             ',state_general[index,0])
                 print()
                 
+def _spin_sym(s,N,sign_ptr,args):
+        L2=int(N/2)
+        s_down = s & np.uint64(2**(L2)-1)
+        s_up = s>>np.uint64(L2)
+        return not(s==(s_up| s_down << np.uint64(N//2)))
+    
+
+def _leftVacuum(basis,L):
+    
+    states=basis.states
+    data=[]
+    row_ind=[]
+        #define a mask for even and odd states  
+    shitf_1= np.uint64(1)    
+    mask_even=np.uint64(int('01'*(4*L//2),2))
+    mask_odd=mask_even << shitf_1
+    for state in states:
+            #print(bin(mask_odd))
+        even_bits=state&mask_even
+        odd_bits=(state&mask_odd) >> shitf_1
+                
+        if(even_bits==odd_bits):
+            k=basis.index(format(state,'0{}b'.format(4*L)))
+            n=int(int(state).bit_count()/2)
+            if k==1:
+                data.append(np.sqrt(2)*(-1j)**n)
+            else:
+                data.append((-1j)**n)
+            row_ind.append(k)
+            
+    col_ind=np.zeros(len(data),dtype=int)
+    data=np.array(data)
+        #create csr matrix
+    leftVacuum=scipy.sparse.csr_matrix((data,(row_ind,col_ind)),shape=(basis.Ns,1))
+    norm=np.sqrt(leftVacuum.T.conjugate()@leftVacuum)
+    print(norm[0,0])
+    leftVacuum=leftVacuum/norm[0,0]
+    return leftVacuum
+    
 L=1
 user_basis=augmented_basis(L,spin_sym=True)
 #print(user_basis)
 user_basis=augmented_basis(L,'restricted',[1,0,0,1])
-user_basis_sym=augmented_basis(L,'restricted',[1,0,0,1],spin_sym=True)
+user_basis_sym=augmented_basis(L,'restricted',[0,0],spin_sym=True)
 print(user_basis)
 print(user_basis_sym)
 
@@ -253,7 +293,26 @@ print(state_vector3.shape)
 extended3=to_extended_vector(state_vector3,user_basis,extended_basis)
 print(extended1)
 print(to_reduced_vector(extended1,user_basis,extended_basis))
+#%%
+user_basis=augmented_basis(L)
+user_basis=augmented_basis(L,'restricted',[0,0])
+for state in user_basis:
+    print(user_basis.int_to_state(state))
+    #print(user_basis.index(state))
+    sym_state=_spin_sym(state,4*L,0,0)
+    print(sym_state)
+    print()
 
+user_basis_sym=augmented_basis(L,'restricted',[0,0],spin_sym=True)
+print(user_basis_sym)
 
+lv_sym=_leftVacuum(user_basis_sym, L)
+lv=_leftVacuum(user_basis, L)
+
+print(lv_sym)
+print(lv)
+
+    
+    
 
 
