@@ -19,8 +19,8 @@ parameters = {"sites": 3,
               "drive": 1,
               "interaction":0,
               "frequency":1,
-              "coupling_empty":0.5,
-              "coupling_full":0.5,
+              "coupling_empty":[0.5,0,0.1],
+              "coupling_full":[0.1,0,0.5],
               "spin_symmetric":True,
 }
 
@@ -352,6 +352,8 @@ def Gr_floquet1(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
         G1=leftVacuum.H@(adag_op.dot(rhoTau_a))
         G2=leftVacuum.H@(a_op.dot(rhoTau_adag))
         Gr[j]=-1j*(np.conj(G1)+G2)*np.heaviside(Tau,0.5)
+        print(np.sum(abs(G2.imag)))
+        print(np.sum(abs(G1.imag)))
     
 
     
@@ -396,6 +398,8 @@ def Gr_floquet(tf,Tf,basis,leftVacuum,Lindblatt,i=0,dt=0.1):
             m+=1
         #print(np.shape(Gr_t))
         #print(len(t),i,N_Tau-i,np.shape(t[N_Tau-i:N_period+N_Tau-i]))
+        print(np.sum(abs(G2.imag)))
+        print(np.sum(abs(G1.imag)))
         Gr[i]=np.trapz(Gr_t,t[N_Tau-i:N_period+N_Tau-i],axis=0)/period
 
     

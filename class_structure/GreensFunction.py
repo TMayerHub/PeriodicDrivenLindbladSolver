@@ -5,6 +5,10 @@ Created on Mon Dec  2 08:02:54 2024
 
 @author: theresa
 """
+import os
+
+#os.environ["MKL_NUM_THREADS"] = str(4)
+#os.environ['OMP_NUM_THREADS'] = '4'
 
 from Lindblatt import createLindblad
 from augmented_basis import augmented_basis
@@ -14,7 +18,25 @@ from quspin.operators import hamiltonian
 import scipy
 import numpy as np
 import matplotlib.pyplot as plt
+import time
+
+from joblib import Parallel, delayed
+#from pathos.multiprocessing import Pool
+
 import warnings
+
+
+def process_j(j,t,Tau,rhos_a,rhos_adag,plus_lV,minus_lV):
+    # Evolution for this particular `j`
+    rhoTau_a = np.array(LindbladM.operator.evolve(rhos_a[:, j], t[j], t[j] + Tau))
+    #print(rhoTau_a.type)
+    rhoTau_adag = np.array(LindbladP.operator.evolve(rhos_adag[:, j], t[j], t[j] + Tau))
+            
+    # Calculate Lesser and Greater contributions for this `j`
+    Lesser_j = plus_lV.T.conjugate() @ rhoTau_a
+    Greater_j = minus_lV.T.conjugate() @ rhoTau_adag
+    
+    return rhoTau_a[:, -1], rhoTau_adag[:, -1], Lesser_j, Greater_j
 
 class calculateGreensFunction:
     def __init__(self,parameters,site,spin):
@@ -291,17 +313,17 @@ class calculateGreensFunction:
             
         t=np.linspace(0,tf,int(np.ceil(tf/dt)))#period/dt)
         rhos=Lindblad0.operator.evolve(rho0T[0],0,t)
-        plt.figure()
+        #plt.figure()
         n_exps=[]
         for i in range(len(rhos[0])):
             rho_n=self.action_n(rhos[:,i])
             n_exp=self.leftVacuum.T.conjugate()@rho_n
             n_exps.append(n_exp)
             
-        plt.plot(t,np.real(n_exps))
+        #plt.plot(t,np.real(n_exps))
         #plt.plot(t,np.imag(n_exps))
         
-        plt.figure()
+        #plt.figure()
         #t_period=np.linspace(tf-period,tf-5dt,int(np.floor(period/dt)))#period/dt)
         #rhos=Lindblad0.operator.evolve(rho0T[0],0,t_period)
         
@@ -313,7 +335,7 @@ class calculateGreensFunction:
             n_exp=self.leftVacuum.T.conjugate()@rho_n
             n_exps.append(n_exp)
             
-        plt.plot(t[len(rhos[0])-N_period:],np.real(n_exps))
+        #plt.plot(t[len(rhos[0])-N_period:],np.real(n_exps))
         print(n_exps[-1])
         return n_exps[-1]
         #plt.plot(t_period,np.imag(n_exps))
@@ -338,7 +360,9 @@ class calculateGreensFunction:
         Tau=np.linspace(0,tf,int(tf/dt)+1)
 
 
+        global LindbladM
         LindbladM=createLindblad(self.basisM,self.parameters,spin_sym=self.spin_sym)
+        global LindbladP
         LindbladP=createLindblad(self.basisP,self.parameters,spin_sym=self.spin_sym)
         
         Greater=np.zeros((len(t),len(Tau)))*0j
@@ -352,8 +376,8 @@ class calculateGreensFunction:
             rhos_adag[:,j]=self.action_adag(rhos[:,j])
         
         self.Tau=None
-        self.Greater=None
-        self.Lesser=None
+        self.a_adag=None
+        self.adag_a=None
         
         Tau_last=0
         diff=1
@@ -364,53 +388,197 @@ class calculateGreensFunction:
                 
             Tau, Lesser, Greater,rhos_a,rhos_adag,diff=self.stepsGreaterLesser(
                                   Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
-                                  LindbladM,LindbladP)
+                                  )#LindbladM,LindbladP)
             Tau_last=Tau[-1]
 
             if self.Tau is None:
                 self.Tau=Tau
-                self.lesser=Lesser
-                self.greater=Greater
+                self.adag_a=Lesser
+                self.a_adag=Greater
                 
             else:
                 self.Tau=np.concatenate((self.Tau,Tau),axis=0)
-                self.lesser=np.concatenate((self.lesser,Lesser),axis=1)
-                self.greater=np.concatenate((self.greater,Greater),axis=1)
+                #print(self.Tau)
+                self.adag_a=np.concatenate((self.adag_a,Lesser),axis=1)
+                self.a_adag=np.concatenate((self.a_adag,Greater),axis=1)
             i+=1
             
         
-        Gr=-1j*(np.conj(self.lesser)+self.greater)*np.heaviside(self.Tau,0.5)
+        Gr=-1j*(np.conj(self.adag_a)+self.a_adag)*np.heaviside(self.Tau,0.5)
         
-        return self.Tau, np.trapz(Gr,t,axis=0)/period
+        
+        Tau_minus=np.flip(self.Tau[1:])*(-1)
+        
+        lesser_plus=+1j*np.conj(self.adag_a)
+        greater_plus=-1j*self.a_adag
+        lesser_minus=+1j*np.flip(self.adag_a[:,1:],axis=1)
+        greater_minus=-1j*np.flip(np.conj(self.a_adag[:,1:]),axis=1)
+        
+        Tau_total=np.concatenate((Tau_minus,self.Tau))
+        lesser_total=np.concatenate((lesser_minus,lesser_plus),axis=1)
+        greater_total=np.concatenate((greater_minus,greater_plus),axis=1)
+        
+        
+        #print(Tau_minus)
+        #Gk_pos=1j*np.heaviside(self.Tau,0.5)*(-1*self.greater + np.conj(self.lesser))
+        
+        
+        #Gk_min=np.heaviside(-1*Tau_minus,0.5)*(-1j*np.conj(greater_minus)+1j*lesser_minus)
+        #Gk=np.concatenate((Gk_min,Gk_pos),axis=1)
+        Gk=lesser_total+greater_total
+        G_advanced = -1*np.heaviside(-Tau_total,0.5)*(greater_total-lesser_total)
+        
+        
+        
+        print('imaginary part')
+        print(np.sum(abs(self.adag_a.imag)))
+        print(np.sum(abs(self.a_adag.imag)))
+        
+        print('real part')
+        print(np.sum(abs(self.adag_a.real)))
+        print(np.sum(abs(self.a_adag.real)))
+
+        lesser_tau=np.trapz(lesser_total,t,axis=0)/period
+        greater_tau=np.trapz(greater_total,t,axis=0)/period
+        adag_a_tau=np.trapz(self.adag_a,t,axis=0)/period
+        a_adag_tau=np.trapz(self.a_adag,t,axis=0)/period
+        Gr_tau=np.trapz(Gr,t,axis=0)/period
+        Gk_tau=np.trapz(Gk,t,axis=0)/period
+        Ga_tau=np.trapz(G_advanced,t,axis=0)/period
+        
+        plt.figure()
+        plt.title('lesser, greater imaginary')
+        plt.plot(Tau_total,lesser_tau.imag,label='lesser')
+        plt.plot(Tau_total,greater_tau.imag,label='greater')
+        plt.legend()
+        plt.xlabel('Tau')
+        plt.figure()
+        plt.title('lesser, greater real')
+        plt.plot(Tau_total,lesser_tau.real,label='lesser')
+        plt.plot(Tau_total,greater_tau.real,label='greater')
+        plt.legend()
+        plt.xlabel('Tau')
+        
+        plt.figure()
+        plt.title('retarted,keldysh imaginary')
+        plt.plot(self.Tau,Gr_tau.imag,label='retarted')
+        plt.plot(Tau_total,Gk_tau.imag,label='keldysh')
+        plt.legend()
+        plt.xlabel('Tau')
+        plt.figure()
+        plt.title('retarted real')
+        plt.plot(self.Tau,Gr_tau.real,label='retarted')
+        plt.plot(Tau_total,Gk_tau.real,label='keldysh')
+        plt.legend()
+        
+        plt.figure()
+        plt.title('expectation values imaginary')
+        plt.plot(self.Tau,a_adag_tau.imag,label='a adag')
+        plt.plot(self.Tau,adag_a_tau.imag,label='adag a')
+        plt.legend()
+        plt.xlabel('Tau')
+        plt.figure()
+        plt.title('expectation values real')
+        plt.plot(self.Tau,a_adag_tau.real,label='a adag')
+        plt.plot(self.Tau,adag_a_tau.real,label='adag a')
+        plt.xlabel('Tau')
+        plt.legend()
+        
+        N_Tau=len(Tau_total)
+        Period=abs(Tau_total[-1]-Tau_total[0])
+        norm=Period/N_Tau#/np.sqrt(2*np.pi)
+        
+        omegas=np.fft.fftfreq(N_Tau,Tau[1]-Tau[0])*2*np.pi
+        omegas=np.fft.fftshift(omegas)
+
+        lesser_om=np.fft.ifftshift(lesser_tau)
+        #lesser_om=lesser_tau
+        lesser_om=np.fft.ifft(lesser_om,norm='forward')*norm
+        lesser_om=np.fft.fftshift(lesser_om)
+        
+        greater_om=np.fft.ifftshift(greater_tau)
+        #greater_om=greater_tau
+        greater_om=np.fft.ifft(greater_om,norm='forward')*norm
+        greater_om=np.fft.fftshift(greater_om)
+        
+        #plt.title('spectral function')
+        #txt='V='+str(V)+'  Om='+str(Om)+'  U='+str(U)+'  T='+str(T[0])+'  G='+str(Gamma1[0])
+        
+        #txt=''
+        #plt.figtext(0.5, 0.01, txt, wrap=True, horizontalalignment='center', fontsize=12)
+        print('len omegas:',len(omegas))
+        #start=8000
+        #end=12000
+        #plt.plot(Tau[N_start:],np.real(G_r[N_start:]),label='real')
+        #plt.plot(omegas,np.imag(G_r[N_start:]),label='imaginary')
+
+        
+        plt.figure()
+        plt.title('real part')
+        plt.plot(omegas[0:-1],lesser_om.real[0:-1],label='lesser')
+        plt.plot(omegas[0:-1],greater_om.real[0:-1],label='greater')
+        plt.xlabel('w')
+        plt.legend()
+        
+        plt.figure()
+        plt.title('imaginary part')
+        plt.plot(omegas[0:-1],lesser_om.imag[0:-1],label='lesser')
+        plt.plot(omegas[0:-1],greater_om.imag[0:-1],label='greater')
+        plt.xlabel('w')
+        plt.legend()
+        
+        
+        
+        return self.Tau, Tau_total, np.trapz(Gr,t,axis=0)/period, Ga_tau, np.trapz(Gk,t,axis=0)/period,lesser_om,greater_om
+    
     
     def stepsGreaterLesser(self,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
-                           LindbladM,LindbladP):
+                           ):
+        #print(LindbladM)
         t=self.t_period
         if Tau_last==0:
             Tau=np.linspace(0,tf,int(tf/dt)+1)+Tau_last
         else:
             Tau=np.linspace(dt,t_step,int(t_step/dt))+Tau_last
             
-        Greater=np.zeros((len(t),len(Tau)))*0j
-        Lesser=np.zeros((len(t),len(Tau)))*0j
+        Greater=np.zeros((len(t),len(Tau)))+0j
+        Lesser=np.zeros((len(t),len(Tau)))+0j
         percent=0
         rhos_Tau_a=np.zeros(rhos_a.shape)+0j
         rhos_Tau_adag=np.zeros(rhos_a.shape)+0j
         for j in range(len(rhos_a[0,:])):  
-            #print(j)
             if j/len(t)>=percent:
                 print(np.ceil(j/len(t)*100),'%')
                 percent+=0.01
             
             rhoTau_a=LindbladM.operator.evolve(rhos_a[:,j],t[j],t[j]+Tau)
             rhoTau_adag=LindbladP.operator.evolve(rhos_adag[:,j],t[j],t[j]+Tau)
-            
+
             rhos_Tau_a[:,j]=rhoTau_a[:,-1]
             rhos_Tau_adag[:,j]=rhoTau_adag[:,-1]
-            
+            #print('rho')
+            #print(np.sum(abs(rhoTau_a[:,0].imag)))
+            #print('lesser')
+            #print(np.sum(abs((self.plus_lV.T.conjugate()@rhoTau_a[:,0]).imag)))
+            result = (self.plus_lV.T.conjugate() @ rhoTau_a[:, 0]).imag
+            #print(f"Imaginary part is close to zero: {result==0}")
             Lesser[j]=self.plus_lV.T.conjugate()@rhoTau_a
+            
             Greater[j]=self.minus_lV.T.conjugate()@rhoTau_adag
-        
+
+        #results = Parallel(n_jobs=-1, verbose=10)(
+            #delayed(process_j)(j,t,Tau,rhos_a,rhos_adag,self.plus_lV,self.minus_lV) for j in range(len(rhos_a[0, :]))
+        #)
+    
+        # Unpack results into the original arrays
+        #for j, (rhoTau_a_j, rhoTau_adag_j, Lesser_j, Greater_j) in enumerate(results):
+            #rhos_Tau_a[:, j] = rhoTau_a_j
+            #rhos_Tau_adag[:, j] = rhoTau_adag_j
+            #Lesser[j] = Lesser_j
+            #Greater[j] = Greater_j
+        #print('imag in step')
+        #print(np.sum(abs(Greater.imag)))
+        #print(np.sum(abs(Lesser.imag)))
         N_av=int(np.ceil(av_Tau/dt))
         Lesser_av_t=np.trapz(abs(Lesser),t,axis=0)/(t[-1]-t[0])
         Lesser_av=np.trapz(Lesser_av_t[-N_av:],Tau[-N_av:])/av_Tau
@@ -418,6 +586,7 @@ class calculateGreensFunction:
         Greater_av=np.trapz(Greater_av_t[-N_av:],Tau[-N_av:])/av_Tau
         
         diff=Lesser_av+Greater_av
+        print(diff)
         return Tau, Lesser, Greater,rhos_Tau_a,rhos_Tau_adag,diff
         
         
@@ -668,6 +837,7 @@ class calculateGreensFunction:
         G2=self.minus_lV.T.conjugate()@rhoTau_adag
         Gr=-1j*(np.conj(G1)+G2)*np.heaviside(Tau,0.5)
         
+        
         return Tau, Gr[0]
 
     
@@ -794,10 +964,25 @@ class calculateGreensFunction:
             Gr[i]=np.trapz(Gr_t,t[N_Tau-i:N_period+N_Tau-i],axis=0)/period
 
         return Tau, Gr
-    
-    
-    
-    
+
+parameters_sym = {"sites": 3,
+              "epsilon": [0,0,0],
+              "hopping": 0.5,
+              "interaction":0,
+              "drive": 1,
+              "frequency":1,
+              "coupling_empty":[0.5,0,0.5],
+              "coupling_full":[0.5,0,0.5],
+              "spin_symmetric":True,
+}
+
+
+#start=time.time()
+#GF0_sym=calculateGreensFunction(parameters_sym,0,'updown')
+#Tau,Gr_Tau=GF0_sym._GreaterLesser()   
+#end=time.time()
+#print(end-start)
+#print(LindbladM)
     
     
     

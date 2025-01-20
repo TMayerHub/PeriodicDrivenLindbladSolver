@@ -17,15 +17,15 @@ L=1# system size
 center=int(np.floor(L/2))
 T=(np.sqrt(1.0)*np.ones(L)+0j)*0.5#hopping right
 U=0
-V=1
+V=0
 Om=1
 #eps=-U/2 #onsite energy
 #eps=[0,-U/2,0]
 eps=0
-Gamma1=np.ones(L)*0.05
+Gamma1=np.ones(L)*0.8
 #Gamma1[center]=0
 #Gamma1=[0,0,0.1]
-Gamma2=np.ones(L)*0.05
+Gamma2=np.ones(L)*0.1
 #Gamma2[center]=0
 #Gamma2=[0.1,0,0]
 #total lenght is N=4L, due to spin up and down
@@ -377,18 +377,18 @@ rho_inf=lowestEV(L_static)
 a_op=a(0,basis)
 adag_op=a_dag(0,basis)
 n_op=n(0,basis)
-for state in range(15):
-    state_array=np.zeros((16,1))
-    state_array[15-state]=1
-    print(basis.int_to_state(state))
-    state_a=a_op.dot(state_array)
-    index = np.nonzero(state_a)[0] 
-    print(index)
-    if len(index)==0:
-        print(0)
-    else:
-        print(basis.int_to_state(15-index[0]),state_a[index])
-    print()
+# for state in range(15):
+#     state_array=np.zeros((16,1))
+#     state_array[15-state]=1
+#     print(basis.int_to_state(state))
+#     state_a=a_op.dot(state_array)
+#     index = np.nonzero(state_a)[0] 
+#     print(index)
+#     if len(index)==0:
+#         print(0)
+#     else:
+#         print(basis.int_to_state(15-index[0]),state_a[index])
+#     print()
 
 # %%
 

@@ -7,7 +7,8 @@ Created on Thu Nov 28 14:48:02 2024
 """
 
 import warnings
-
+import os
+#os.environ['OMP_NUM_THREADS']='4' # set number of OpenMP threads to run in parallel
 import numpy as np
 import scipy
 

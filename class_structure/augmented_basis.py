@@ -9,9 +9,9 @@ Created on Thu Nov 21 14:26:50 2024
 from __future__ import print_function, division
 #
 import sys,os
-os.environ['KMP_DUPLICATE_LIB_OK']='True' # uncomment this line if omp error occurs on OSX for python 3
-os.environ['OMP_NUM_THREADS']='1' # set number of OpenMP threads to run in parallel
-os.environ['MKL_NUM_THREADS']='1' # set number of MKL threads to run in parallel
+#os.environ['KMP_DUPLICATE_LIB_OK']='True' # uncomment this line if omp error occurs on OSX for python 3
+#os.environ['OMP_NUM_THREADS']='4' # set number of OpenMP threads to run in parallel
+#os.environ['MKL_NUM_THREADS']='4' # set number of MKL threads to run in parallel
 #
 quspin_path = os.path.join(os.getcwd(),"../../")
 sys.path.insert(0,quspin_path)
@@ -33,10 +33,28 @@ from joblib import Parallel, delayed
 @cfunc(map_sig_64,
         locals=dict(s_up=uint64, s_down=uint64, ), )
 def _spin_sym(s,N,sign_ptr,args):
-        L2=int(N/2)
-        s_down = s & np.uint64(2**(L2)-1)
-        s_up = s>>np.uint64(L2)
-        return s_up| s_down << N//2
+    """
+    Symmetry mapping function for spin states. Maps a given spin state into 
+    its symmetric counterpart by switching the spinup and down states using
+    bit-shifting. 
+    
+    Parameters:
+    s : int
+        The current spin state in binary representation.
+    N : int
+        Total number of sites.
+    sign_ptr : predefined quspin structure
+    notused here
+    args : predefined quspin structure
+        notused here
+    Returns:
+    int
+        Spin symmetric counterpart
+    """
+    L2=int(N/2)
+    s_down = s & np.uint64(2**(L2)-1)
+    s_up = s>>np.uint64(L2)
+    return s_up| s_down << N//2
 
 
 @jit(int64(int64,int64),locals=dict(),nopython=True,nogil=True)
@@ -45,6 +63,16 @@ def _count_particles_64(state, site_ind):
     Count the number of fermions (1's) in the binary configuration of the state up to site site_ind (0-indexed).
     This works for 64-bit integers.
     see https://en.wikipedia.org/wiki/Hamming_weight for explanations
+    
+    Parameters:
+    state : int
+        The binary representation of the state.
+    site_ind : int
+        The site index (0-indexed) up to which particles are counted.
+    
+    Returns:
+    int
+        Number of fermions (1's) up to the specified site index.
     """
     
     # Create a mask to keep only the bits up to site_ind
@@ -65,9 +93,16 @@ def _count_particles_64(state, site_ind):
 @jit(uint64(uint64),locals=dict(),nopython=True,nogil=True)
 def _count_total_particles_64(state):
     """
-    Count the number of fermions (1's) in the binary configuration of the state up to site site_ind (0-indexed).
-    This works for 64-bit integers.
-    see https://en.wikipedia.org/wiki/Hamming_weight for explanations
+    Counts the total number of fermions (1's) in the binary configuration 
+    of a state.
+    
+    Parameters:
+    state : int
+        The binary representation of the state.
+    
+    Returns:
+    int
+        Total number of fermions (1's) in the state.
     """
     
     f_count=state
@@ -85,6 +120,27 @@ def _count_total_particles_64(state):
 @cfunc(op_sig_64,
  	locals=dict(sign=int32,n=int64,b=int64,f_count=uint32), )
 def op(op_struct_ptr, op_str, site_ind, N, args):
+    """
+    Defines the action of quantum operators (+,-,n,1) on a state
+    see quspin documation
+
+    Parameters:
+    op_struct_ptr : pointer
+        Pointer to the operator structure, including the current state and matrix element.
+    op_str : int
+        Operator type ('+' = 43, '-' = 45, 'n' = 110, 'I' = 73).
+    site_ind : int
+        Site index where the operator is applied.
+    N : int
+        Total number of sites.
+    args : tuple
+        Additional arguments (not used here).
+    
+    Returns:
+    int
+        Error code: 0 for success, -1 for invalid operator.
+    """
+    
     # using struct pointer to pass op_struct_ptr back to C++ see numba Records
     op_struct = carray(op_struct_ptr, 1)[0]
     err = 0
@@ -107,6 +163,7 @@ def op(op_struct_ptr, op_str, site_ind, N, args):
         op_struct.matrix_ele *= n
     elif op_str == 73:  # "I" is integer value 73 = ord("I")
         pass
+    
     else:
         op_struct.matrix_ele = 0
         err = -1
@@ -123,6 +180,22 @@ def next_state(s,counter,N,args):
     After we have all possible states with a certain occupation/excitation we increase the
     quasiparticle number/exciation by one and go through the process again until we reached
     the user defined limit.
+    Generates the next state recursively in a binary configuration space. 
+    Used for creating all possible states.
+    
+    Parameters:
+    s : int
+        The current state in binary representation.
+    counter : int
+        Not used, necessary for quspin in the background.
+    N : int
+        Total number of sites.
+    args : tuple
+        Additional arguments (not used here).
+    
+    Returns:
+    int
+        The next state in binary representation.
     """
 
     if(s==0): 
@@ -140,14 +213,42 @@ def next_state(s,counter,N,args):
 next_state_args = np.array([], dtype=np.uint64)  # compulsory, even if empty
 
 
-# python function to calculate the starting state to generate the particle conserving basis
+
 def get_s0_pcon(N, Np):
+    """
+    Defines the starting state to create the basis
+    
+    Parameters:
+    N : int
+        Total number of sites.
+    Np : int
+        Number of particles.
+    
+    Returns:
+    int
+        The starting state (always 0 for this implementation).
+    """
     return 0
 
 # python function to calculate the size of the particle-conserved basis,
 # i.e. BEFORE applying pre_check_state and symmetry maps
 def get_Ns_pcon(N, Np):
+    """
+    Calculates the size of the particle-conserved basis before applying 
+    symmetry or pre-check filters.
+    
+    Parameters:
+    N : int
+        Total number of sites.
+    Np : int
+        Number of particles.
+    
+    Returns:
+    int
+        Size of the particle-conserving basis.
+    """
     return sum([comb(N,i,exact=True) for i in range(9)])
+
 
 pcon_dict = dict(
     Np=(),
@@ -162,9 +263,22 @@ pcon_dict = dict(
     locals=dict(diff_up=int64,diff_down=int64,norm_space_up = uint64, augmented_space_up = uint64,norm_space_down = uint64, 
                 augmented_space_down = uint64),)
 def pre_check_state_sector1(s,N,args):
-        ''''''
-        
-        
+    """
+    Pre-check function for filtering states in a specific sector. 
+    Compares up and down spin components based on predefined differences.
+
+    Parameters:
+    s : int
+        The current state in binary representation.
+    N : int
+        Total number of sites.
+    args : array
+        Array of differences for spin-up and spin-down components.
+
+    Returns:
+    bool
+        True if the state satisfies the constraints, False otherwise.
+    """
         #get all the even bits (odd sites)
         ##augmented_space=s&uint64(0x5555555555555555)
         #get all the odd bits (even sites)
@@ -173,25 +287,25 @@ def pre_check_state_sector1(s,N,args):
         ##spin_up=norm_space >> np.uint64(2*L)
         #masking the left part of the state
         ##spin_down=norm_space & np.uint64(2**(2*L)-1)
-        L=int(N/4)
+    L=int(N/4)
         #0101010
         
-        for i in range(0,2,2):
-            diff_up=args[i]
-            diff_down=args[i+1]
-            norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
-            norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
+    for i in range(0,2,2):
+        diff_up=args[i]
+        diff_down=args[i+1]
+        norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
+        norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
             
-            #101010
-            augmented_space_up=(s&uint64(0xAAAAAAAAAAAAAAAA))>>np.uint64(2*L)
-            augmented_space_down=(s&uint64(0xAAAAAAAAAAAAAAAA))& np.uint64(2**(2*L)-1)
+        #101010
+        augmented_space_up=(s&uint64(0xAAAAAAAAAAAAAAAA))>>np.uint64(2*L)
+        augmented_space_down=(s&uint64(0xAAAAAAAAAAAAAAAA))& np.uint64(2**(2*L)-1)
     
-            equal_up=_count_total_particles_64(norm_space_up) == (diff_up+_count_total_particles_64(augmented_space_up))
-            equal_down=_count_total_particles_64(norm_space_down) == (diff_down+_count_total_particles_64(augmented_space_down))
-            if equal_up and equal_down:
-                return True
+        equal_up=_count_total_particles_64(norm_space_up) == (diff_up+_count_total_particles_64(augmented_space_up))
+        equal_down=_count_total_particles_64(norm_space_down) == (diff_down+_count_total_particles_64(augmented_space_down))
+        if equal_up and equal_down:
+            return True
             
-        return False
+    return False
     
 @cfunc(pre_check_state_sig_64,
     locals=dict(diff_up=int64,diff_down=int64,norm_space_up = uint64, augmented_space_up = uint64,norm_space_down = uint64, 
