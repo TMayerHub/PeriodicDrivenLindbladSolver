@@ -6,6 +6,7 @@ Created on Mon Dec  2 08:02:54 2024
 @author: theresa
 """
 import os
+import json
 
 #os.environ["MKL_NUM_THREADS"] = str(4)
 #os.environ['OMP_NUM_THREADS'] = '4'
@@ -26,6 +27,7 @@ from joblib import Parallel, delayed
 import warnings
 
 
+
 def process_j(j,t,Tau,rhos_a,rhos_adag,plus_lV,minus_lV):
     # Evolution for this particular `j`
     rhoTau_a = np.array(LindbladM.operator.evolve(rhos_a[:, j], t[j], t[j] + Tau))
@@ -39,10 +41,10 @@ def process_j(j,t,Tau,rhos_a,rhos_adag,plus_lV,minus_lV):
     return rhoTau_a[:, -1], rhoTau_adag[:, -1], Lesser_j, Greater_j
 
 class calculateGreensFunction:
-    def __init__(self,parameters,site,spin):
+    def __init__(self,parameters,sites,spin):
         self.parameters=parameters
         self.spin_sym=parameters['spin_symmetric']
-        self.site=site
+        self.sites=sites
         self.L=parameters['length']
         self.center=self.findCenter()
         self.spin=spin
@@ -55,8 +57,8 @@ class calculateGreensFunction:
         print('end define basis')
         
         self.leftVacuum=self._leftVacuum()
-        self.plus_lV=self.plus_leftVacuum()
-        self.minus_lV=self.minus_leftVacuum()
+        #self.plus_lV=self.plus_leftVacuum()
+        #self.minus_lV=self.minus_leftVacuum()
         
         self.greater=None
         self.lesser=None
@@ -154,8 +156,8 @@ class calculateGreensFunction:
         return augmented_basis(self.L,'restricted',diff_sector,spin_sym=self.spin_sym)
         
 
-    def action_n(self,state):
-        index=self.center+2*self.site
+    def action_n(self,state,site):
+        index=self.center+2*site
         if self.spin == 'updown':
             n_list=[[1+0j,index],[1+0j,index+2*self.L]]
         if self.spin == 'up':
@@ -177,9 +179,9 @@ class calculateGreensFunction:
         n_op=hamiltonian(static,dynamic,dtype=np.complex128,basis=self.basis0,check_herm=False,check_symm=False,check_pcon=False)
         return n_op.dot(state)
     
-    def action_a(self,state_vector):
-        
-        index=self.center+2*self.site
+    def action_a(self,state_vector,site):
+       
+        index=self.center+2*site
         if self.spin == 'updown':
             a_list=[[1+0j,index],[1+0j,index+2*self.L]]
         if self.spin == 'up':
@@ -208,9 +210,9 @@ class calculateGreensFunction:
 
         return a_vector
     
-    def action_adag(self,state_vector):
+    def action_adag(self,state_vector,site):
         
-        index=self.center+2*self.site
+        index=self.center+2*site
         if self.spin == 'updown':
             a_list=[[1+0j,index],[1+0j,index+2*self.L]]
             
@@ -287,19 +289,19 @@ class calculateGreensFunction:
         return leftVacuum
         
     
-    def plus_leftVacuum(self):
+    def plus_leftVacuum(self,site):
         '''adag acting from the right <I|a+, returns a|I>'''
         lV=self.leftVacuum.toarray()
-        plV=self.action_a(lV)
+        plV=self.action_a(lV,site)
         return scipy.sparse.csr_array(plV)
     
-    def minus_leftVacuum(self):
+    def minus_leftVacuum(self,site):
         '''a acting from the right <I|a, , returns a+|I>'''
         lV=self.leftVacuum.toarray()
-        mlV=self.action_adag(lV)
+        mlV=self.action_adag(lV,site)
         return scipy.sparse.csr_array(mlV)
     
-    def plot_n(self,tf,dt=0.1):
+    def plot_n(self,site,tf,dt=0.1):
         basis0=augmented_basis(self.L,'restricted',[0,0],spin_sym=self.spin_sym)
 
         Lindblad0=createLindblad(basis0,self.parameters,spin_sym=self.spin_sym)
@@ -316,7 +318,7 @@ class calculateGreensFunction:
         #plt.figure()
         n_exps=[]
         for i in range(len(rhos[0])):
-            rho_n=self.action_n(rhos[:,i])
+            rho_n=self.action_n(rhos[:,i],site)
             n_exp=self.leftVacuum.T.conjugate()@rho_n
             n_exps.append(n_exp)
             
@@ -331,7 +333,7 @@ class calculateGreensFunction:
         N_period=int(np.floor(period/dt))
         n_exps=[]
         for i in range(len(rhos[0])-N_period,len(rhos[0])):
-            rho_n=self.action_n(rhos[:,i])
+            rho_n=self.action_n(rhos[:,i],site)
             n_exp=self.leftVacuum.T.conjugate()@rho_n
             n_exps.append(n_exp)
             
@@ -341,7 +343,7 @@ class calculateGreensFunction:
         #plt.plot(t_period,np.imag(n_exps))
         
         
-    def _GreaterLesser(self,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,
+    def _GreaterLesserPlotFT(self,sites,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,
                        tf=5e2,t_step=1e2,av_Tau=10):
         
         
@@ -372,8 +374,8 @@ class calculateGreensFunction:
         rhos_adag=np.zeros((self.basisP.Ns,len(rhos[0,:])))+0j
         
         for j in range(len(rhos[0,:])):  
-            rhos_a[:,j]=self.action_a(rhos[:,j])
-            rhos_adag[:,j]=self.action_adag(rhos[:,j])
+            rhos_a[:,j]=self.action_a(rhos[:,j],sites[1])
+            rhos_adag[:,j]=self.action_adag(rhos[:,j],sites[1])
         
         self.Tau=None
         self.a_adag=None
@@ -387,7 +389,7 @@ class calculateGreensFunction:
                 raise RuntimeError(f"Max iterations reached ({max_iter}) without convergence. Last epsilon: {diff}")
                 
             Tau, Lesser, Greater,rhos_a,rhos_adag,diff=self.stepsGreaterLesser(
-                                  Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
+                                  sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                                   )#LindbladM,LindbladP)
             Tau_last=Tau[-1]
 
@@ -531,10 +533,72 @@ class calculateGreensFunction:
         
         return self.Tau, Tau_total, np.trapz(Gr,t,axis=0)/period, Ga_tau, np.trapz(Gk,t,axis=0)/period,lesser_om,greater_om
     
+    def _GreaterLesser(self,sites,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,
+                       tf=5e2,t_step=1e2,av_Tau=10):
+        
+        
+        if self.parameters['frequency']:
+            period=np.pi*2/self.parameters['frequency']
+        else:
+            period=1
+
+
+        if self.rhos_period is None:
+            self.rhoOf_t(dt=dt,eps=eps,max_iter=max_iter,av_periods=av_periods,
+                         tf=tf,t_step=t_step,return_all=False)
+        
+        t=self.t_period
+        rhos=self.rhos_period
+        Tau=np.linspace(0,tf,int(tf/dt)+1)
+
+        global LindbladM
+        LindbladM=createLindblad(self.basisM,self.parameters,spin_sym=self.spin_sym)
+        global LindbladP
+        LindbladP=createLindblad(self.basisP,self.parameters,spin_sym=self.spin_sym)
+        
+        Greater=np.zeros((len(t),len(Tau)))*0j
+        Lesser=np.zeros((len(t),len(Tau)))*0j
+        
+        rhos_a=np.zeros((self.basisM.Ns,len(rhos[0,:])))+0j
+        rhos_adag=np.zeros((self.basisP.Ns,len(rhos[0,:])))+0j
+        
+        for j in range(len(rhos[0,:])):  
+            rhos_a[:,j]=self.action_a(rhos[:,j],sites[1])
+            rhos_adag[:,j]=self.action_adag(rhos[:,j],sites[1])
+        
+        self.Tau=None
+        self.a_adag=None
+        self.adag_a=None
+        
+        Tau_last=0
+        diff=1
+        i=0
+        while diff>eps:
+            if i>max_iter:
+                raise RuntimeError(f"Max iterations reached ({max_iter}) without convergence. Last epsilon: {diff}")
+                
+            Tau, Lesser, Greater,rhos_a,rhos_adag,diff=self.stepsGreaterLesser(
+                                  sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
+                                  )#LindbladM,LindbladP)
+            Tau_last=Tau[-1]
+
+            if self.Tau is None:
+                self.Tau=Tau
+                self.adag_a=Lesser
+                self.a_adag=Greater
+                
+            else:
+                self.Tau=np.concatenate((self.Tau,Tau),axis=0)
+                self.adag_a=np.concatenate((self.adag_a,Lesser),axis=1)
+                self.a_adag=np.concatenate((self.a_adag,Greater),axis=1)
+            i+=1
+
+        return t,self.Tau,self.adag_a,self.a_adag 
     
-    def stepsGreaterLesser(self,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
+    def stepsGreaterLesser(self,sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                            ):
-        #print(LindbladM)
+        plus_lV=self.plus_leftVacuum(sites[0])
+        minus_lV=self.minus_leftVacuum(sites[0])
         t=self.t_period
         if Tau_last==0:
             Tau=np.linspace(0,tf,int(tf/dt)+1)+Tau_last
@@ -556,29 +620,11 @@ class calculateGreensFunction:
 
             rhos_Tau_a[:,j]=rhoTau_a[:,-1]
             rhos_Tau_adag[:,j]=rhoTau_adag[:,-1]
-            #print('rho')
-            #print(np.sum(abs(rhoTau_a[:,0].imag)))
-            #print('lesser')
-            #print(np.sum(abs((self.plus_lV.T.conjugate()@rhoTau_a[:,0]).imag)))
-            result = (self.plus_lV.T.conjugate() @ rhoTau_a[:, 0]).imag
-            #print(f"Imaginary part is close to zero: {result==0}")
-            Lesser[j]=self.plus_lV.T.conjugate()@rhoTau_a
-            
-            Greater[j]=self.minus_lV.T.conjugate()@rhoTau_adag
 
-        #results = Parallel(n_jobs=-1, verbose=10)(
-            #delayed(process_j)(j,t,Tau,rhos_a,rhos_adag,self.plus_lV,self.minus_lV) for j in range(len(rhos_a[0, :]))
-        #)
-    
-        # Unpack results into the original arrays
-        #for j, (rhoTau_a_j, rhoTau_adag_j, Lesser_j, Greater_j) in enumerate(results):
-            #rhos_Tau_a[:, j] = rhoTau_a_j
-            #rhos_Tau_adag[:, j] = rhoTau_adag_j
-            #Lesser[j] = Lesser_j
-            #Greater[j] = Greater_j
-        #print('imag in step')
-        #print(np.sum(abs(Greater.imag)))
-        #print(np.sum(abs(Lesser.imag)))
+            Lesser[j]=plus_lV.T.conjugate()@rhoTau_a
+            
+            Greater[j]=minus_lV.T.conjugate()@rhoTau_adag
+
         N_av=int(np.ceil(av_Tau/dt))
         Lesser_av_t=np.trapz(abs(Lesser),t,axis=0)/(t[-1]-t[0])
         Lesser_av=np.trapz(Lesser_av_t[-N_av:],Tau[-N_av:])/av_Tau
@@ -586,8 +632,86 @@ class calculateGreensFunction:
         Greater_av=np.trapz(Greater_av_t[-N_av:],Tau[-N_av:])/av_Tau
         
         diff=Lesser_av+Greater_av
-        print(diff)
         return Tau, Lesser, Greater,rhos_Tau_a,rhos_Tau_adag,diff
+        
+
+    def _GreaterLesserSites(self,sites,dt=0.05,eps=1e-12,max_iter=1000,
+                        av_periods=5,tf=5e2,t_step=1e2,av_Tau=10,writeFile=False,
+                        dirName=None):
+        
+        res_sites=[]
+        t_res=[]
+        Tau_res=[]
+        for i in range(len(sites)):
+            print(sites[i])
+            t,Tau,adag_a,a_adag=self._GreaterLesser(sites[i],dt,eps,max_iter,
+                                av_periods,tf,t_step,av_Tau)
+            if len(t_res)==0:
+                t_res=t.tolist()
+            if len(Tau_res)<len(Tau):
+                Tau_res=Tau.tolist()
+                
+            res_sites.append({'sites': str(sites[i][0])+' '+str(sites[i][1]),
+                              'a+_a real': adag_a.real.tolist(),
+                              'a+_a imag': adag_a.imag.tolist(),
+                              'a_a+ real': a_adag.real.tolist(),
+                              'a_a+ imag': a_adag.imag.tolist(),
+
+                              })
+            
+        for i in range(len(sites)):
+            if len(res_sites[i]['a+_a real'][0])<len(Tau_res):
+                zeros=np.zeros(len(Tau_res)-len(res_sites[i]['a+_a real'][0])).tolist()
+                res_sites[i]['a+_a real'] = res_sites[i]['a+_a real'].append(zeros)
+                res_sites[i]['a+_a imag'] = res_sites[i]['a+_a imag'].append(zeros)
+                res_sites[i]['a_a+ real'] = res_sites[i]['a_a+ real'].append(zeros)
+                res_sites[i]['a_a+ imag'] = res_sites[i]['a_a+ imag'].append(zeros)
+                
+        
+               
+        if writeFile:
+            timestr = time.strftime("%Y%m%d-%H%M%S")
+            _input = {
+                'parameters':self.parameters,
+                'spin':self.spin,
+                'sites':sites,
+                'time_param': {'dt':dt,
+                               'eps':eps,
+                               'max_iter':max_iter,
+                               'av_periods':av_periods,
+                               'tf':tf,
+                               't_step':t_step,
+                               'av_Tau':av_Tau,
+
+                               }
+                }
+            
+            _output={
+                       't':t_res,
+                       'Tau':Tau_res,
+                       'results':res_sites,
+                       }
+            
+            json_File={
+                       'input':_input,
+                       'output':_output,
+                       }
+            
+            filename = ('U'+str(self.parameters['interaction']) +
+            'V'+str(self.parameters['drive'])+
+            'Om'+str(self.parameters['frequency'])+
+             '_'+timestr+'.json')
+            
+            filepath=os.path.join(dirName, filename )
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(json_File, f, ensure_ascii=False)
+                
+        return t,Tau,res_sites
+            
+            
+            
+        
         
         
     def rhoOf_t(self,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,tf=5e2,t_step=1e2,return_all=False):

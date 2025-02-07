@@ -25,7 +25,7 @@ class createLindblad:
         self.parameters = parameters
         self.basis = basis
         
-        self.L = self.require_parameter('sites')
+        self.L = self.require_parameter('length')
         self.eps = parameters["epsilon"]
         self.T = parameters["hopping"]
         self.U = parameters["interaction"]
