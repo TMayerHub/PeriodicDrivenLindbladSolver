@@ -9,6 +9,9 @@ Created on Thu Nov 21 14:26:50 2024
 from __future__ import print_function, division
 #
 import sys,os
+os.environ["KMP_DUPLICATE_LIB_OK"] = ("True")  # uncomment this line if omp error occurs on OSX for python 3
+os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
+os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
 #os.environ['KMP_DUPLICATE_LIB_OK']='True' # uncomment this line if omp error occurs on OSX for python 3
 #os.environ['OMP_NUM_THREADS']='4' # set number of OpenMP threads to run in parallel
 #os.environ['MKL_NUM_THREADS']='4' # set number of MKL threads to run in parallel
@@ -291,8 +294,16 @@ def pre_check_state_sector1(s,N,args):
         #0101010
         
     for i in range(0,2,2):
-        diff_up=args[i]
-        diff_down=args[i+1]
+        if args[i]==2:
+            diff_up=-1
+            diff_down=-1
+        else:
+            diff_up=args[i]
+            diff_down=args[i+1]
+        if args[i+1]==2:
+            diff_down=-1
+        else:
+            diff_down=args[i+1]
         norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
         norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
             
@@ -326,8 +337,16 @@ def pre_check_state_sector2(s,N,args):
         #0101010
         
         for i in range(0,4,2):
-            diff_up=args[i]
-            diff_down=args[i+1]
+            if args[i]==2:
+                diff_up=-1
+                diff_down=-1
+            else:
+                diff_up=args[i]
+                diff_down=args[i+1]
+            if args[i+1]==2:
+                diff_down=-1
+            else:
+                diff_down=args[i+1]
             norm_space_up=(s&uint64(0x5555555555555555))>>np.uint64(2*L)
             norm_space_down=(s&uint64(0x5555555555555555)) & np.uint64(2**(2*L)-1)
             

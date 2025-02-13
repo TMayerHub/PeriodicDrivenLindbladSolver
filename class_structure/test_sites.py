@@ -5,14 +5,28 @@ Created on Mon Jan 20 08:29:12 2025
 
 @author: theresa
 """
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = ("True")  # uncomment this line if omp error occurs on OSX for python 3
+os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
+os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
 from GreensFunction_sites import calculateGreensFunction
 from augmented_basis import augmented_basis
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 
+parameters7 = {"length": 7,
+              "epsilon": [-4,-3,-2,-1,2,3,4],
+              "hopping": 0.3,
+              "interaction":2,
+              "drive": 1,
+              "frequency":1,
+              "coupling_empty":[0.2,0.3,0.4,0,0.6,0.7,0.8],
+              "coupling_full":[0.8,0.7,0.6,0,0.4,0.3,0.2],
+              "spin_symmetric":False,
+}
 
-parameters3 = {"length": 5,
+parameters5 = {"length": 5,
               "epsilon": [-3,-2,-1,2,3],
               "hopping": 0.3,
               "interaction":2,
@@ -20,6 +34,17 @@ parameters3 = {"length": 5,
               "frequency":1,
               "coupling_empty":[0.3,0.4,0,0.6,0.7],
               "coupling_full":[0.7,0.6,0,0.4,0.3],
+              "spin_symmetric":False,
+}
+
+parameters3 = {"length": 3,
+              "epsilon": [-2,-1,2],
+              "hopping": 0.3,
+              "interaction":2,
+              "drive": 1,
+              "frequency":1,
+              "coupling_empty":[0.4,0,0.6],
+              "coupling_full":[0.6,0,0.4],
               "spin_symmetric":False,
 }
 
@@ -96,13 +121,15 @@ def plotSpectrum(Tau,Gr_Tau,Ga_Tau,Gk_Tau,start,end):
     return omegas,omegas_k,Gr,Gk
 
 
-GF0=calculateGreensFunction(parameters3,[[2,2]],'up')
+t_start=time.time()
+GF0=calculateGreensFunction(parameters5,[[2,2]],'up')
 
 #print((GF0_sym.plus_lV.T.conjugate()@a))
-n=GF0.plot_n(0,500)
-GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=1000,
-                    av_periods=5,tf=2e2,t_step=1e2,av_Tau=5,writeFile=True,
+#n=GF0.plot_n(0,500)
+GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=100,
+                    av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
                     dirName='results')
+print('total time: ',time.time()-t_start)
 #GF0._GreaterLesserPlotFT([[0,0],[-1,-1],[1,1],[0,1],[1,0],[0,-1],[-1,0]],dt=0.05,eps=1e-12,max_iter=1000,
                     #av_periods=5,tf=2e2,t_step=1e2,av_Tau=10)
 #Tau,Tau_total,Gr_Tau,Ga_Tau,Gk_Tau,lesser,greater=GF0._GreaterLesser([0,0],tf=100,eps=1e-8)

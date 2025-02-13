@@ -8,6 +8,9 @@ Created on Thu Nov 28 14:48:02 2024
 
 import warnings
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = ("True")  # uncomment this line if omp error occurs on OSX for python 3
+os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
+os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
 #os.environ['OMP_NUM_THREADS']='4' # set number of OpenMP threads to run in parallel
 import numpy as np
 import scipy

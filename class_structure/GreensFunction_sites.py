@@ -5,7 +5,11 @@ Created on Mon Dec  2 08:02:54 2024
 
 @author: theresa
 """
+
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = ("True")  # uncomment this line if omp error occurs on OSX for python 3
+os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
+os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
 import json
 
 #os.environ["MKL_NUM_THREADS"] = str(4)
@@ -20,12 +24,18 @@ import scipy
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-
+from numba import njit, prange
 from joblib import Parallel, delayed
+import threading
+import gc
 #from pathos.multiprocessing import Pool
 
 import warnings
+from joblib import Memory
 
+memory = Memory(location="cache_dir", verbose=0)
+progress_lock = threading.Lock()
+progress_count = 0
 
 
 def process_j(j,t,Tau,rhos_a,rhos_adag,plus_lV,minus_lV):
@@ -52,9 +62,14 @@ class calculateGreensFunction:
         print('start define basis')
         self.basis0=augmented_basis(self.L,'restricted',[0,0],spin_sym=self.spin_sym)
         self.basisE=augmented_basis(self.L,spin_sym=self.spin_sym)
-        self.basisP=self._basisP()
+        
         self.basisM=self._basisM()
+        self.basisP=self._basisP()
         print('end define basis')
+        print(self.basis0.Ns)
+        print(self.basisE.Ns)
+        print(self.basisM.Ns)
+        print(self.basisP.Ns)
         
         self.leftVacuum=self._leftVacuum()
         #self.plus_lV=self.plus_leftVacuum()
@@ -133,13 +148,13 @@ class calculateGreensFunction:
         
     def _basisM(self):
         if self.spin == 'updown':
-            diff_sector = [-1,0,0,-1]
+            diff_sector = [2,0,0,2]
             
         if self.spin == 'up':
-            diff_sector = [-1,0]
+            diff_sector = [2,0]
             
         if self.spin == 'down':
-            diff_sector = [0,-1]
+            diff_sector = [0,2]
             
         return augmented_basis(self.L,'restricted',diff_sector,spin_sym=self.spin_sym)
     
@@ -580,6 +595,7 @@ class calculateGreensFunction:
             Tau, Lesser, Greater,rhos_a,rhos_adag,diff=self.stepsGreaterLesser(
                                   sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                                   )#LindbladM,LindbladP)
+            print('diff',diff)
             Tau_last=Tau[-1]
 
             if self.Tau is None:
@@ -592,9 +608,43 @@ class calculateGreensFunction:
                 self.adag_a=np.concatenate((self.adag_a,Lesser),axis=1)
                 self.a_adag=np.concatenate((self.a_adag,Greater),axis=1)
             i+=1
-
+            print(Tau[-1])
+            print(diff)
         return t,self.Tau,self.adag_a,self.a_adag 
     
+    #@njit(parallel=True)
+    #@memory.cache
+    def evolve_single_step(self,rhos_a, rhos_adag, t, Tau, j,plus_lV,minus_lV):
+        """
+        Evolve a single step for rhos_a and rhos_adag, then update Lesser, Greater, and the evolution matrices.
+        """
+        # Evolve the system for rhos_a and rhos_adag
+        rhoTau_a = LindbladM.operator.evolve(rhos_a[:, j], t[j], t[j] + Tau)
+        #rhoTau_a = np.array(list(rhoTau_a)).T
+        rhoTau_adag = LindbladP.operator.evolve(rhos_adag[:, j], t[j], t[j] + Tau)
+        #rhoTau_adag = np.array(list(rhoTau_adag)).T
+    
+        # Update matrices for rhos_Tau_a and rhos_Tau_adag
+        #rhos_Tau_a[:, j] = rhoTau_a[:, -1]
+        #rhos_Tau_adag[:, j] = rhoTau_adag[:, -1]
+    
+        # Calculate Lesser and Greater 
+        Lesser_j = (plus_lV.T.conjugate() @ rhoTau_a) [0]
+        Greater_j = (minus_lV.T.conjugate() @ rhoTau_adag) [0]
+        rhoTau_adag=rhoTau_adag[:, -1]
+        rhoTau_a=rhoTau_a[:, -1]
+        
+        #del rhoTau_a
+        #del rhoTau_adag
+        gc.collect()
+        with progress_lock:  # Ensure thread safety
+            global progress_count
+            progress_count += 1
+            #if progress_count % 10 == 0 or progress_count == len(rhos_a[0, :]):  # Print every 10%
+                #print(f"Progress: {progress_count}/{len(rhos_a[0, :])} ({progress_count/len(rhos_a[0, :])*100:.1f}%)")
+
+        return j, rhoTau_a, rhoTau_adag, Lesser_j, Greater_j
+
     def stepsGreaterLesser(self,sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                            ):
         plus_lV=self.plus_leftVacuum(sites[0])
@@ -607,23 +657,39 @@ class calculateGreensFunction:
             
         Greater=np.zeros((len(t),len(Tau)))+0j
         Lesser=np.zeros((len(t),len(Tau)))+0j
-        percent=0
+        #percent=0
         rhos_Tau_a=np.zeros(rhos_a.shape)+0j
         rhos_Tau_adag=np.zeros(rhos_a.shape)+0j
-        for j in range(len(rhos_a[0,:])):  
-            if j/len(t)>=percent:
-                print(np.ceil(j/len(t)*100),'%')
-                percent+=0.01
+        times=Tau[:, np.newaxis] + t
+        print('trying t')
+        print(np.shape(rhos_a),np.shape(np.conj([t])),np.shape(times))
+        
+        #print('parallel')
+        
+        for jstart in range(0,len(rhos_a[0,:]),20):
+            print(jstart)
+            if jstart +20 > len(rhos_a[0,:]):
+                jend=len(rhos_a[0,:])
+            else:
+                jend=jstart +20
+                
+            results = Parallel(n_jobs=5, backend="threading", prefer="threads",batch_size=5,require='sharedmem')(
+            delayed(self.evolve_single_step)(rhos_a, rhos_adag, t, Tau, j,plus_lV,minus_lV)
+            for j in range(jstart,jend)
+            )
+            results.sort(key=lambda x: x[0])
+            _,rhos_Tau_a_j, rhos_Tau_adag_j, Lesser_j, Greater_j = zip(*results)
             
-            rhoTau_a=LindbladM.operator.evolve(rhos_a[:,j],t[j],t[j]+Tau)
-            rhoTau_adag=LindbladP.operator.evolve(rhos_adag[:,j],t[j],t[j]+Tau)
+            Lesser[jstart:jend]=np.array(Lesser_j)
+            Greater[jstart:jend]=np.array(Greater_j)
+            rhos_Tau_a[:,jstart:jend]=np.column_stack(rhos_Tau_a_j)
+            rhos_Tau_adag[:,jstart:jend]=np.column_stack(rhos_Tau_adag_j)
+            print('sleeping')
+            time.sleep(2)  # Pause execution for 2 seconds to clear swap
 
-            rhos_Tau_a[:,j]=rhoTau_a[:,-1]
-            rhos_Tau_adag[:,j]=rhoTau_adag[:,-1]
+            # Force garbage collection 
+            gc.collect()
 
-            Lesser[j]=plus_lV.T.conjugate()@rhoTau_a
-            
-            Greater[j]=minus_lV.T.conjugate()@rhoTau_adag
 
         N_av=int(np.ceil(av_Tau/dt))
         Lesser_av_t=np.trapz(abs(Lesser),t,axis=0)/(t[-1]-t[0])
@@ -710,12 +776,8 @@ class calculateGreensFunction:
         return t,Tau,res_sites
             
             
-            
-        
-        
-        
+
     def rhoOf_t(self,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,tf=5e2,t_step=1e2,return_all=False):
-        
         Lindblad0=createLindblad(self.basis0,self.parameters,spin_sym=self.spin_sym)
         rho0=self.leftVacuum
         rho0T=rho0.T.toarray()
@@ -734,14 +796,20 @@ class calculateGreensFunction:
         #the complete timevector
         t = np.concatenate([t_period + n * period for n in range(num_periods_tf)])
         
-        rhos=Lindblad0.operator.evolve(rho0T[0],0,t)
+        time_start=time.time()
+        rhos=Lindblad0.operator.evolve(rho0T[0],0,t,iterate=True)
+        rhos = np.array(list(rhos)).T
+        #print('equal time evolove: ',time.time()-time_start)
         
         #calulate the differnce per period
         diff_period=0
         for j in range(1,av_periods):
+            if (av_periods+1)*N_period>len(t)+1:
+                diff_period=1
+                break
             t_period_diff=t[-(1+j)*N_period-1:-j*N_period]
+            print(len(t_period_diff))
             diff_period+=np.sum(np.trapz(abs(rhos[:,-N_period-1:]-rhos[:,-(j+1)*N_period-1:-j*N_period]),t_period_diff,axis=1))/period/len(rhos)/av_periods
-        
         num_periods_step=int(np.ceil(t_step/period))
 
         t_total=t.copy()
@@ -749,12 +817,13 @@ class calculateGreensFunction:
         i=0
         while diff_period > eps:
             t_last=t[-1]
-            t = np.concatenate([t_period + n * period for n in range(num_periods_step)])+t_last
+            t = np.concatenate([t_period + n * period for n in range(num_periods_step)])+t_last+dt
             rhos=Lindblad0.operator.evolve(rhos[:,-1],t_last,t)
             
-            if return_all:
-                t_total.append(t)
-                rhos_total.append(rhos,axis=1)
+            t_total=np.append(t_total,t)
+            rhos_total=np.append(rhos_total,rhos,axis=1)
+            print(t_total.shape)
+            print(rhos_total.shape)
                 
             if i>max_iter:
                 if return_all:
@@ -762,22 +831,26 @@ class calculateGreensFunction:
                 else:
                     return t,rhos
                 raise RuntimeError(f"Max iterations reached ({max_iter}) without convergence. Last epsilon: {diff_period}")
-            
+
             diff_period=0
             for j in range(1,av_periods):
-                t_period_diff=t[-(1+j)*N_period-1:-j*N_period]
-                diff_period+=np.sum(np.trapz(abs(rhos[:,-N_period-1:]-rhos[:,-(j+1)*N_period-1:-j*N_period]),t_period_diff,axis=1))/period/len(rhos)/av_periods
+                if (av_periods+1)*N_period>len(t_total):
+                    diff_period=1
+                    break
+                t_period_diff=t_total[-(1+j)*N_period-1:-j*N_period]
+                diff_period+=np.sum(np.trapz(abs(rhos_total[:,-N_period-1:]-rhos_total[:,-(j+1)*N_period-1:-j*N_period]),t_period_diff,axis=1))/period/len(rhos_total)/av_periods
+            print(t_total[-1])
+            print(diff_period)
                 
                 
-                
-        self.t_period=t[-N_period-1:]
-        self.rhos_period=rhos[:,-N_period-1:]
+        self.t_period=t_total[-N_period-1:]
+        self.rhos_period=rhos_total[:,-N_period-1:]
         
         if return_all:
             return t_total,rhos_total
         
         else:
-            return t,rhos
+            return t_total[-2*N_period-1:],rhos_total[:,-2*N_period-1:]
             
         
         

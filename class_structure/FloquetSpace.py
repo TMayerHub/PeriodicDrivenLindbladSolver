@@ -9,6 +9,12 @@ Created on Fri Jan 24 10:56:13 2025
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import multiprocessing
+import os
+
+print(multiprocessing.cpu_count())
+print(os.cpu_count())
+#print(len(os.sched_getaffinity(0)))
 
 def loadTimeJson(filePath):
     with open(filePath, "r") as f:
@@ -49,7 +55,9 @@ def RetartedWigner(mode_max,site,t,Tau_total,adag_a,a_adag):
 
 
         integrand=np.heaviside(Tau_total,0.5)*(-1j)*(a_adagWigner0+adag_a_conjWigner0)
-            
+        plt.figure()
+        plt.title('retarted')
+        plt.plot(Tau_total,integrand)
         wigner=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
         wigner=np.fft.fftshift(wigner)
         wigner_retarted[m]=wigner
@@ -70,7 +78,8 @@ def LesserWigner(mode_max,site,t,Tau_total,adag_a):
         lesser=np.concatenate((negative,positive),axis=1)
         integrand=calculateWigner_t(lesser, m, abs(Tau_total), t)
         #integrand=calculateWigner_t(np.concatenate((positve,negative,axis=1)),m,abs(Tau_total),t)
-            
+        plt.figure()
+        plt.plot(Tau_total,integrand)
         wigner=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
         wigner=np.fft.fftshift(wigner)
         wigner_lesser[m]=wigner
@@ -89,7 +98,8 @@ def GreaterWigner(mode_max,site,t,Tau_total,a_adag):
         negative=-1j*np.flip(np.conj(a_adag[1][:,1:]),axis=1)
         greater=np.concatenate((negative,positive),axis=1)
         integrand=calculateWigner_t(greater, m, abs(Tau_total), t)
-            
+        plt.figure()
+        plt.plot(Tau_total,integrand)  
         wigner=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
         wigner=np.fft.fftshift(wigner)
         wigner_greater[m]=wigner
@@ -126,8 +136,9 @@ def RetartedFloq(modes,site,t,Tau,adag_a,a_adag):
             #shift in frequency due to Floquet structure
             frequ_shift=np.exp(1j*(m+n)/2*Om*Tau_total/2)
             integrand=np.heaviside(Tau_total,0.5)*(-1j)*(a_adagWigner0+adag_a_conjWigner0)*frequ_shift
-            
+
             integrand=np.fft.ifftshift(integrand)
+
             floq=np.fft.ifft(integrand,norm='forward')*norm
             floq=np.fft.fftshift(floq)
             
@@ -232,7 +243,7 @@ def calcGreen(component):
         Gk[i]=Gk_matrix[i0,i1]
     return omegas,Gr,Gk
     
-_input,_output=loadTimeJson('results/U2V1Om1_20250206-222144.json')
+_input,_output=loadTimeJson('results/U0V1Om1_20250212-092450.json')
 print(_input)
 #calculateFloqet([0,0],['retarted'])
 adag_a=_output['results'][0]['a+_a']
@@ -255,17 +266,17 @@ t=_output['t']
 print(len(t))
 print(len(n))
 print(wigner_dic)
-omegas_an00,Gr_an00,Gk_an00=calcGreen([0,0])
+#omegas_an00,Gr_an00,Gk_an00=calcGreen([0,0])
 start=np.where(omegas>-5)[0][0]
 end=np.where(omegas>5)[0][0]
 print(start)
 Gr=wigner_dic['0 0']['retarted'][0]
 Gk=wigner_dic['0 0']['keldysh'][0]
 spectral=(-1)/np.pi*np.imag(Gr)
-spectral_ann=(-1)/np.pi*np.imag(Gr_an00)
+#spectral_ann=(-1)/np.pi*np.imag(Gr_an00)
 print(np.trapz(wigner_dic['0 0']['keldysh'][0].imag,omegas)/(4*np.pi)+1/2)
 print(np.trapz(spectral,omegas))
-print(np.trapz(spectral_ann,omegas_an00))
+#print(np.trapz(spectral_ann,omegas_an00))
 plt.figure()
 plt.title('retarted, 00')
 plt.plot(omegas[start:end],wigner_dic['0 0']['retarted'][0].real[start:end],label='real')
