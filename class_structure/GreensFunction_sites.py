@@ -402,7 +402,7 @@ class calculateGreensFunction:
         while diff>eps:
             if i>max_iter:
                 raise RuntimeError(f"Max iterations reached ({max_iter}) without convergence. Last epsilon: {diff}")
-                
+            print(diff)
             Tau, Lesser, Greater,rhos_a,rhos_adag,diff=self.stepsGreaterLesser(
                                   sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                                   )#LindbladM,LindbladP)
@@ -482,6 +482,7 @@ class calculateGreensFunction:
         plt.plot(Tau_total,Gk_tau.imag,label='keldysh')
         plt.legend()
         plt.xlabel('Tau')
+
         plt.figure()
         plt.title('retarted real')
         plt.plot(self.Tau,Gr_tau.real,label='retarted')
@@ -543,7 +544,7 @@ class calculateGreensFunction:
         plt.plot(omegas[0:-1],greater_om.imag[0:-1],label='greater')
         plt.xlabel('w')
         plt.legend()
-        
+        plt.show()
         
         
         return self.Tau, Tau_total, np.trapz(Gr,t,axis=0)/period, Ga_tau, np.trapz(Gk,t,axis=0)/period,lesser_om,greater_om
@@ -614,14 +615,14 @@ class calculateGreensFunction:
     
     #@njit(parallel=True)
     #@memory.cache
-    def evolve_single_step(self,rhos_a, rhos_adag, t, Tau, j,plus_lV,minus_lV):
+    def evolve_single_step(self,rhos_a, rhos_adag, t, Tau, Tau_last,j,plus_lV,minus_lV):
         """
         Evolve a single step for rhos_a and rhos_adag, then update Lesser, Greater, and the evolution matrices.
         """
         # Evolve the system for rhos_a and rhos_adag
-        rhoTau_a = LindbladM.operator.evolve(rhos_a[:, j], t[j], t[j] + Tau)
+        rhoTau_a = LindbladM.operator.evolve(rhos_a[:, j], t[j] +Tau_last , t[j] + Tau)
         #rhoTau_a = np.array(list(rhoTau_a)).T
-        rhoTau_adag = LindbladP.operator.evolve(rhos_adag[:, j], t[j], t[j] + Tau)
+        rhoTau_adag = LindbladP.operator.evolve(rhos_adag[:, j], t[j] +Tau_last , t[j] + Tau)
         #rhoTau_adag = np.array(list(rhoTau_adag)).T
     
         # Update matrices for rhos_Tau_a and rhos_Tau_adag
@@ -651,9 +652,9 @@ class calculateGreensFunction:
         minus_lV=self.minus_leftVacuum(sites[0])
         t=self.t_period
         if Tau_last==0:
-            Tau=np.linspace(0,tf,int(tf/dt)+1)+Tau_last
+            Tau=np.linspace(0,tf-dt,int(tf/dt))+Tau_last
         else:
-            Tau=np.linspace(dt,t_step,int(t_step/dt))+Tau_last
+            Tau=np.linspace(dt,t_step,int(t_step/dt)+1)+Tau_last
             
         Greater=np.zeros((len(t),len(Tau)))+0j
         Lesser=np.zeros((len(t),len(Tau)))+0j
@@ -674,7 +675,7 @@ class calculateGreensFunction:
                 jend=jstart +20
                 
             results = Parallel(n_jobs=5, backend="threading", prefer="threads",batch_size=5,require='sharedmem')(
-            delayed(self.evolve_single_step)(rhos_a, rhos_adag, t, Tau, j,plus_lV,minus_lV)
+            delayed(self.evolve_single_step)(rhos_a, rhos_adag, t, Tau, Tau_last,j,plus_lV,minus_lV)
             for j in range(jstart,jend)
             )
             results.sort(key=lambda x: x[0])
@@ -796,10 +797,8 @@ class calculateGreensFunction:
         #the complete timevector
         t = np.concatenate([t_period + n * period for n in range(num_periods_tf)])
         
-        time_start=time.time()
         rhos=Lindblad0.operator.evolve(rho0T[0],0,t,iterate=True)
         rhos = np.array(list(rhos)).T
-        #print('equal time evolove: ',time.time()-time_start)
         
         #calulate the differnce per period
         diff_period=0

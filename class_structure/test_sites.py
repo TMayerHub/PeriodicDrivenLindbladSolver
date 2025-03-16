@@ -38,10 +38,10 @@ parameters5 = {"length": 5,
 }
 
 parameters3 = {"length": 3,
-              "epsilon": [-2,-1,2],
-              "hopping": 0.3,
-              "interaction":2,
-              "drive": 1,
+              "epsilon": [-1,0,1],
+              "hopping": 0.2,
+              "interaction":0,
+              "drive": 0,
               "frequency":1,
               "coupling_empty":[0.4,0,0.6],
               "coupling_full":[0.6,0,0.4],
@@ -54,8 +54,8 @@ parameters1 = {"length": 1,
               "interaction":0,
               "drive": 1,
               "frequency":1,
-              "coupling_empty":0.06,
-              "coupling_full":0.04,
+              "coupling_empty":0.04,
+              "coupling_full":0.06,
               "spin_symmetric":False,
 }
 
@@ -122,17 +122,23 @@ def plotSpectrum(Tau,Gr_Tau,Ga_Tau,Gk_Tau,start,end):
 
 
 t_start=time.time()
-GF0=calculateGreensFunction(parameters5,[[2,2]],'up')
+GF0=calculateGreensFunction(parameters3,[[0,0]],'up')
+#Tau,Tau_total,Gr_Tau,Ga_Tau,Gk_Tau,lesser,greater=GF0._GreaterLesserPlotFT([0,0],dt=0.05,eps=1e-7,max_iter=100,
+                    #av_periods=4,tf=2e1,t_step=2e1,av_Tau=5)
+
 
 #print((GF0_sym.plus_lV.T.conjugate()@a))
 #n=GF0.plot_n(0,500)
 GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=100,
-                    av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
+                   av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
                     dirName='results')
 print('total time: ',time.time()-t_start)
 #GF0._GreaterLesserPlotFT([[0,0],[-1,-1],[1,1],[0,1],[1,0],[0,-1],[-1,0]],dt=0.05,eps=1e-12,max_iter=1000,
                     #av_periods=5,tf=2e2,t_step=1e2,av_Tau=10)
 #Tau,Tau_total,Gr_Tau,Ga_Tau,Gk_Tau,lesser,greater=GF0._GreaterLesser([0,0],tf=100,eps=1e-8)
+start=1000
+end=-1000
+plotSpectrum(Tau,Gr_Tau,Ga_Tau,Gk_Tau,start,end)
 N_Gk=len(Gk_Tau)
 Gk_tau0=Gk_Tau[int(np.floor(N_Gk/2))]
 print('calculated n: ', n)
