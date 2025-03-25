@@ -210,8 +210,8 @@ def calcRetarded_a(omegas,l_max,Gamma,V,Om,m,n):
 V=[1,2]
 Om=[1,1]
 #file1='class_structure/results/U0V1Om1_20250212-092450.json'
-file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V1Om1_20250312-163032.json')
-file2 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V2Om1_20250312-163713.json')
+file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V1Om1_20250318-102150.json')
+file2 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V1Om1_20250318-102150.json')
 #file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V1Om1_20250313-113654.json')
 #file2 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V2Om1_20250313-111413.json')
 print('printing filename')
@@ -275,9 +275,9 @@ for v in range(len(V)):
         print('order: ',order)
         print(sum(abs(omegas-omegasF)))
         print(len(omegas))
-        print('retarded: ',np.sqrt(np.trapz(abs((Gr.imag-GrFile.imag)**2),omegas))/np.trapz(abs(Gr.imag)))
+        print('retarded: ',np.sqrt(np.trapz(abs((Gr.imag-GrFile.imag)**2),omegas))/np.trapz(abs(Gr.imag),omegas))
         Gr_error[v]+=np.sqrt(np.trapz(abs((Gr.imag-GrFile.imag)**2),omegas))
-        print('keldysh: ',np.sqrt(np.trapz(abs((Gk.imag-GkFile.imag)**2),omegas))/np.trapz(abs(Gk.imag)))
+        print('keldysh: ',np.sqrt(np.trapz(abs((Gk.imag-GkFile.imag)**2),omegas))/np.trapz(abs(Gk.imag),omegas))
         Gk_error[v]+=np.sqrt(np.trapz(abs((Gk.imag-GkFile.imag)**2),omegas))
     #axs[v,0].legend()
     #axs[v,1].legend()

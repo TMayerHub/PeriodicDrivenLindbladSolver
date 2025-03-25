@@ -126,10 +126,12 @@ def RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
         Om=1    
     
     norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
-    wigner_retarted=np.empty((mode_max+1), dtype=object)
+    wigner_retarted=np.empty((mode_max*2+1), dtype=object)
     Tau=Tau_total[int(np.floor(len(Tau_total))/2):]
-    
-    for m in range(0,mode_max+1):
+    #plt.figure()
+    #plt.title('test retarded')
+    for m in range(-mode_max,mode_max+1):
+        print('modes in retarded:',m,m+mode_max)
         a_adagWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(_input,a_adag[0],m,Tau,t)))
         adag_a_conjWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(_input,np.conj(adag_a[0]),m,Tau,t)))
 
@@ -140,8 +142,15 @@ def RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
         #plt.plot(Tau_total,integrand)
         wigner=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
         wigner=np.fft.fftshift(wigner)
-        wigner_retarted[m]=wigner
+        wigner_retarted[m+mode_max]=wigner
+
+        #plt.plot(wigner_retarted[m+mode_max].imag,label=m)
     
+    #plt.legend()
+
+    #wigner_retarted=np.array(wigner_retarted)
+    #plt.plot(wigner_retarted[2])
+    #plt.show()
     return np.array(wigner_retarted)
 
 def LesserWigner(_input,mode_max,site,t,Tau_total,adag_a):
@@ -150,9 +159,9 @@ def LesserWigner(_input,mode_max,site,t,Tau_total,adag_a):
         Om=1    
     
     norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
-    wigner_lesser=np.empty((mode_max+1), dtype=object)
+    wigner_lesser=np.empty((2*mode_max+1), dtype=object)
     
-    for m in range(0,mode_max+1):
+    for m in range(-mode_max,mode_max+1):
         
         positive=+1j*np.conj(adag_a[0])
         negative=+1j*np.flip(adag_a[1][:,1:],axis=1)
@@ -163,7 +172,7 @@ def LesserWigner(_input,mode_max,site,t,Tau_total,adag_a):
         #plt.plot(Tau_total,integrand)
         wigner=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
         wigner=np.fft.fftshift(wigner)
-        wigner_lesser[m]=wigner
+        wigner_lesser[m+mode_max]=wigner
     return np.array(wigner_lesser)
 
 def GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag):
@@ -172,8 +181,8 @@ def GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag):
         Om=1    
     
     norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
-    wigner_greater=np.empty((mode_max+1), dtype=object)
-    for m in range(0,mode_max+1):
+    wigner_greater=np.empty((2*mode_max+1), dtype=object)
+    for m in range(-mode_max,mode_max+1):
         
         positive=-1j*a_adag[0]
         negative=-1j*np.flip(np.conj(a_adag[1][:,1:]),axis=1)
@@ -183,7 +192,7 @@ def GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag):
         #plt.plot(Tau_total,integrand)  
         wigner=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
         wigner=np.fft.fftshift(wigner)
-        wigner_greater[m]=wigner
+        wigner_greater[m+mode_max]=wigner
     return np.array(wigner_greater)
 
 
@@ -194,40 +203,160 @@ def KeldyshWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
     
     
     
-def RetartedFloq(_input,modes,site,t,Tau,adag_a,a_adag):
+def RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1
     
-    Tau_minus=np.flip(Tau[1:])*(-1)
-    Tau_total=np.concatenate((Tau_minus,Tau))
     
+    Tau=Tau_total[int(np.floor(len(Tau_total))/2):]
+    Tau_minus=np.flip(Tau[1:])*(-1)
     norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
-    floquet_retarted=np.empty((2*modes[0]+1, 2*modes[1]+1), dtype=object)
-    plt.figure()
+    #floquet_retarted=np.empty((2*modes[0]+1, 2*modes[1]+1), dtype=object)
+    #plt.figure()
     
     omegas=np.fft.fftfreq(len(Tau_total),Tau[1]-Tau[0])*2*np.pi
     omegas=np.fft.fftshift(omegas)
-    
+    valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
+    omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+    l_om=len(omegas_center)
+    floquet_retarted=np.zeros((l_om,2*modes[0]+1, 2*modes[1]+1), dtype=complex)
+    #fig, axs = plt.subplots(2, figsize=(10, 6))
     for m in range(-modes[0],modes[0]+1):
         for n in range(-modes[1],modes[1]+1):
-            a_adagWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(a_adag[0],m-n,Tau,t)))
-            adag_a_conjWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(np.conj(adag_a[0]),m-n,Tau,t)))
+            a_adagWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(_input,a_adag[0],m-n,Tau,t)))
+            adag_a_conjWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(_input,np.conj(adag_a[0]),m-n,Tau,t)))
 
             #shift in frequency due to Floquet structure
-            frequ_shift=np.exp(1j*(m+n)/2*Om*Tau_total/2)
+            frequ_shift=np.exp(1j*(m+n)/2*Om*Tau_total)
             integrand=np.heaviside(Tau_total,0.5)*(-1j)*(a_adagWigner0+adag_a_conjWigner0)*frequ_shift
 
             integrand=np.fft.ifftshift(integrand)
 
             floq=np.fft.ifft(integrand,norm='forward')*norm
             floq=np.fft.fftshift(floq)
-            
-            floquet_retarted[m+modes[0],n+modes[1]]=floq
-    plt.legend()
+
+            floq=floq[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+            omegas_nm=omegas_center+(m+n)/2*Om
+            for i in range(l_om):
+                floquet_retarted[i,m+modes[0],n+modes[1]]=floq[i]
+            #if n==m:
+            #    axs[0].plot(omegas_nm,floquet_retarted[:,m+modes[0],n+modes[1]].real,label=n)
+            #    axs[1].plot(omegas_nm,floquet_retarted[:,m+modes[0],n+modes[1]].imag,label=n)
+
+    #plt.legend()
+    #plt.show()
     return floquet_retarted
+
+def LesserFloquet(_input,modes,t,Tau_total,adag_a):
+    Om=_input['parameters']['frequency']
+    if Om==0:
+        Om=1    
+    
+    norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
+
+    #calculate relevant omegas and there indices
+    omegas=np.fft.fftfreq(len(Tau_total),Tau_total[1]-Tau_total[0])*2*np.pi
+    omegas=np.fft.fftshift(omegas)
+    valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
+    omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+    l_om=len(omegas_center)
+
+    #define storage for matrix elements
+    floquet_lesser=np.zeros((l_om,2*modes[0]+1, 2*modes[1]+1), dtype=complex)
+    #fig, axs = plt.subplots(2, figsize=(10, 6))
+    for m in range(-modes[0],modes[0]+1):
+        for n in range(-modes[1],modes[1]+1):
+        
+            positive=+1j*np.conj(adag_a[0])
+            negative=+1j*np.flip(adag_a[1][:,1:],axis=1)
+            lesser=np.concatenate((negative,positive),axis=1)
+
+            integrand=calculateWigner_t(_input,lesser, m-n, abs(Tau_total), t)
+            frequ_shift=np.exp(1j*(m+n)/2*Om*Tau_total)
+            integrand=integrand*frequ_shift
+
+            floq=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
+            floq=np.fft.fftshift(floq)
+            floq=floq[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+            for i in range(l_om):
+                floquet_lesser[i,m+modes[0],n+modes[1]]=floq[i]
+            #omegas_nm=omegas_center+(m+n)/2*Om
+            #if n==m:
+            #    axs[0].plot(omegas_nm,floquet_lesser[:,m+modes[0],n+modes[1]].real,label=n)
+            #    axs[1].plot(omegas_nm,floquet_lesser[:,m+modes[0],n+modes[1]].imag,label=n)
+
+    #plt.legend()
+    #plt.show()
+
+    return np.array(floquet_lesser)
+
+def GreaterFloquet(_input,modes,t,Tau_total,a_adag):
+    Om=_input['parameters']['frequency']
+    if Om==0:
+        Om=1    
+    
+    norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
+
+    #calculate relevant omegas and there indices
+    omegas=np.fft.fftfreq(len(Tau_total),Tau_total[1]-Tau_total[0])*2*np.pi
+    omegas=np.fft.fftshift(omegas)
+    valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
+    omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+    l_om=len(omegas_center)
+
+    #define storage for matrix elements
+    floquet_greater=np.zeros((l_om,2*modes[0]+1, 2*modes[1]+1), dtype=complex)
+    #fig, axs = plt.subplots(2, figsize=(10, 6))
+    for m in range(-modes[0],modes[0]+1):
+        for n in range(-modes[1],modes[1]+1):
+        
+            positive=-1j*a_adag[0]
+            negative=-1j*np.flip(np.conj(a_adag[1][:,1:]),axis=1)
+            greater=np.concatenate((negative,positive),axis=1)
+            integrand=calculateWigner_t(_input,greater, m-n, abs(Tau_total), t)
+            frequ_shift=np.exp(1j*(m+n)/2*Om*Tau_total)
+            integrand=integrand*frequ_shift
+
+            floq=np.fft.ifft(np.fft.ifftshift(integrand),norm='forward')*norm
+            floq=np.fft.fftshift(floq)
+            floq=floq[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+            for i in range(l_om):
+                floquet_greater[i,m+modes[0],n+modes[1]]=floq[i]
+            #omegas_nm=omegas_center+(m+n)/2*Om
+            #if n==m:
+            #    axs[0].plot(omegas_nm,floquet_greater[:,m+modes[0],n+modes[1]].real,label=n)
+            #    axs[1].plot(omegas_nm,floquet_greater[:,m+modes[0],n+modes[1]].imag,label=n)
+
+    #plt.legend()
+    #plt.show()
+    return np.array(floquet_greater)
             
-def calculateCurrent(sites): 
+def KeldyshFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
+    Om=_input['parameters']['frequency']
+    if Om==0:
+        Om=1   
+
+    floquet_lesser=LesserFloquet(_input,modes,t,Tau_total,adag_a)
+    floquet_greater=GreaterFloquet(_input,modes,t,Tau_total,a_adag)
+    floquet_keldysh=floquet_lesser+floquet_greater
+
+    
+    #omegas=np.fft.fftfreq(len(Tau_total),Tau_total[1]-Tau_total[0])*2*np.pi
+    #omegas=np.fft.fftshift(omegas)
+    #valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
+    #omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+    
+    #plt.figure()
+    #for l in range(-modes[0],modes[0]+1):
+    #    plt.plot(omegas_center+l*Om,floquet_keldysh[:,l+modes[0],l+modes[0]].imag,label=l)
+    #plt.legend()
+    #plt.show()
+
+    return floquet_lesser+floquet_greater
+
+
+def calculateCurrent(_input,_output,sites): 
     current=[]
     for site in sites:
         if site=='-1 -1' or site=='1 1':
@@ -257,7 +386,7 @@ def calculateCurrent(sites):
             
     
     
-def calculateWigner(mode_max,components,sites):
+def calculateWigner(_output,mode_max,components,sites):
     wigner_dic={}
     for site in sites:
         wigner_dic[site]={}
@@ -301,7 +430,7 @@ def calculateWigner(mode_max,components,sites):
         
 
                
-def calcGreen(component):
+def calcGreen(_input,component):
     eps=_input['parameters']['epsilon']
     gamma1=np.diag(_input['parameters']['coupling_empty'],0)
     gamma2=np.diag(_input['parameters']['coupling_full'],0)
@@ -358,21 +487,69 @@ def calculateWignerFromFile(file,mode_max,components,sites):
             for comp in components:
                 if comp=='retarted':
                     wigner_dic[site['sites']]['retarted']=RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag)
-                    print('calculated retared')
                 if comp=='lesser':
                     wigner_dic[site['sites']]['lesser']=LesserWigner(_input,mode_max,site,t,Tau_total,adag_a)
-                    print('calculated lesser')
                 if comp=='greater':
                     wigner_dic[site['sites']]['greater']=GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag)
-                    print('calculated greater')
                 if comp=='keldysh':
-                    
                     wigner_dic[site['sites']]['keldysh']=KeldyshWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag)
-                    print('calculated keldysh')
         return sites,omegas,wigner_dic
 
+def calculateFloquetFromFile(file,modes,components,sites):
+    
+    _input,_output=loadTimeJson(file)
+    print(_input)
+    Om=_input['parameters']['frequency']
+    if Om==0:
+        Om=1 
 
+    floquet_dic={}
+    for site in sites:
+        floquet_dic[site]={}
+    t=np.array(_output['t'])
+    Tau=np.array(_output['Tau'])
+    
+    Tau_minus=np.flip(Tau[1:])*(-1)
+    Tau_total=np.concatenate((Tau_minus,Tau))
 
+    omegas=np.fft.fftfreq(len(Tau_total),Tau_total[1]-Tau_total[0])*2*np.pi
+    omegas=np.fft.fftshift(omegas)
+    valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
+    omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
+
+    for site in _output['results']:
+        if site['sites'] in sites:
+            site0 = site['sites'][0]
+            site1 = site['sites'][2]
+            adag_a0=np.array(site['a+_a'])
+            a_adag0=np.array(site['a_a+'])
+            if site0 == site1:
+                adag_a1=adag_a0
+                a_adag1=a_adag0
+            else:
+                for site2 in _output['results']:
+                    if site2['sites'] == str(site1)+' '+str(site0):
+                        adag_a1=np.array(site2['a+_a'])
+                        a_adag1=np.array(site2['a_a+'])
+            adag_a=[adag_a0,adag_a1]
+            a_adag=[a_adag0,a_adag1]
+            
+            for comp in components:
+                if comp=='retarded':
+                    floquet_dic[site['sites']]['retarded']=RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag)
+                
+                if comp=='lesser':
+                    floquet_dic[site['sites']]['lesser']=LesserFloquet(_input,modes,t,Tau_total,adag_a)
+                    
+                if comp=='greater':
+                    floquet_dic[site['sites']]['greater']=GreaterFloquet(_input,modes,t,Tau_total,a_adag)
+                    
+                if comp=='keldysh':
+                    floquet_dic[site['sites']]['keldysh']=KeldyshFloquet(_input,modes,t,Tau_total,adag_a,a_adag)
+        return sites,omegas_center,floquet_dic
+
+#file='class_structure/results/U0V1Om1_20250318-072625.json'
+#calculateFloquetFromFile(file,[2,2],['greater'],['0 0'])
 
 #_input,_output=loadTimeJson('results/U0V1Om1_20250212-092450.json')
 #print(_input)

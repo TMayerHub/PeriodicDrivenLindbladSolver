@@ -652,7 +652,7 @@ class calculateGreensFunction:
         minus_lV=self.minus_leftVacuum(sites[0])
         t=self.t_period
         if Tau_last==0:
-            Tau=np.linspace(0,tf-dt,int(tf/dt))+Tau_last
+            Tau=np.linspace(0,tf,int(tf/dt)+1)+Tau_last
         else:
             Tau=np.linspace(dt,t_step,int(t_step/dt)+1)+Tau_last
             
@@ -666,15 +666,15 @@ class calculateGreensFunction:
         print(np.shape(rhos_a),np.shape(np.conj([t])),np.shape(times))
         
         #print('parallel')
-        
-        for jstart in range(0,len(rhos_a[0,:]),20):
+        col_int=32
+        for jstart in range(0,len(rhos_a[0,:]),col_int):
             print(jstart)
-            if jstart +20 > len(rhos_a[0,:]):
+            if jstart +col_int > len(rhos_a[0,:]):
                 jend=len(rhos_a[0,:])
             else:
-                jend=jstart +20
+                jend=jstart +col_int
                 
-            results = Parallel(n_jobs=5, backend="threading", prefer="threads",batch_size=5,require='sharedmem')(
+            results = Parallel(n_jobs=8, backend="threading", prefer="threads",batch_size=8,require='sharedmem')(
             delayed(self.evolve_single_step)(rhos_a, rhos_adag, t, Tau, Tau_last,j,plus_lV,minus_lV)
             for j in range(jstart,jend)
             )
@@ -686,7 +686,7 @@ class calculateGreensFunction:
             rhos_Tau_a[:,jstart:jend]=np.column_stack(rhos_Tau_a_j)
             rhos_Tau_adag[:,jstart:jend]=np.column_stack(rhos_Tau_adag_j)
             print('sleeping')
-            time.sleep(2)  # Pause execution for 2 seconds to clear swap
+            time.sleep(0.5)  # Pause execution for 2 seconds to clear swap
 
             # Force garbage collection 
             gc.collect()

@@ -38,13 +38,13 @@ parameters5 = {"length": 5,
 }
 
 parameters3 = {"length": 3,
-              "epsilon": [-1,0,1],
-              "hopping": 0.2,
+              "epsilon": [1,0,-1],
+              "hopping": 0.3,
               "interaction":0,
-              "drive": 0,
+              "drive": 2,
               "frequency":1,
-              "coupling_empty":[0.4,0,0.6],
-              "coupling_full":[0.6,0,0.4],
+              "coupling_empty":[0.6,0,0.9],
+              "coupling_full":[0.9,0,0.6],
               "spin_symmetric":False,
 }
 
@@ -120,9 +120,11 @@ def plotSpectrum(Tau,Gr_Tau,Ga_Tau,Gk_Tau,start,end):
     
     return omegas,omegas_k,Gr,Gk
 
+# Define the path for your new file
 
+print(os.getcwd())
 t_start=time.time()
-GF0=calculateGreensFunction(parameters3,[[0,0]],'up')
+GF0=calculateGreensFunction(parameters1,[[0,1],[1,0],[0,0]],'up')
 #Tau,Tau_total,Gr_Tau,Ga_Tau,Gk_Tau,lesser,greater=GF0._GreaterLesserPlotFT([0,0],dt=0.05,eps=1e-7,max_iter=100,
                     #av_periods=4,tf=2e1,t_step=2e1,av_Tau=5)
 
@@ -131,7 +133,7 @@ GF0=calculateGreensFunction(parameters3,[[0,0]],'up')
 #n=GF0.plot_n(0,500)
 GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=100,
                    av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
-                    dirName='results')
+                    dirName='class_structure/results')
 print('total time: ',time.time()-t_start)
 #GF0._GreaterLesserPlotFT([[0,0],[-1,-1],[1,1],[0,1],[1,0],[0,-1],[-1,0]],dt=0.05,eps=1e-12,max_iter=1000,
                     #av_periods=5,tf=2e2,t_step=1e2,av_Tau=10)
