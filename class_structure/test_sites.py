@@ -40,8 +40,8 @@ parameters5 = {"length": 5,
 parameters3 = {"length": 3,
               "epsilon": [1,0,-1],
               "hopping": 0.3,
-              "interaction":0,
-              "drive": 2,
+              "interaction":1,
+              "drive": 1,
               "frequency":1,
               "coupling_empty":[0.6,0,0.9],
               "coupling_full":[0.9,0,0.6],
@@ -124,14 +124,14 @@ def plotSpectrum(Tau,Gr_Tau,Ga_Tau,Gk_Tau,start,end):
 
 print(os.getcwd())
 t_start=time.time()
-GF0=calculateGreensFunction(parameters1,[[0,1],[1,0],[0,0]],'up')
+GF0=calculateGreensFunction(parameters3,[[0,1],[1,0]],'up')
 #Tau,Tau_total,Gr_Tau,Ga_Tau,Gk_Tau,lesser,greater=GF0._GreaterLesserPlotFT([0,0],dt=0.05,eps=1e-7,max_iter=100,
                     #av_periods=4,tf=2e1,t_step=2e1,av_Tau=5)
 
 
 #print((GF0_sym.plus_lV.T.conjugate()@a))
 #n=GF0.plot_n(0,500)
-GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=100,
+GF0._GreaterLesserSites([[0,1],[1,0]],dt=0.05,eps=1e-8,max_iter=100,
                    av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
                     dirName='class_structure/results')
 print('total time: ',time.time()-t_start)

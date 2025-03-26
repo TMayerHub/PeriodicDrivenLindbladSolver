@@ -111,7 +111,7 @@ def calcRetardedFromInv_a(omegas,l_max,Gamma,V,Om,m,n):
     #plt.plot(omegas,Gret.real)
     #plt.plot(omegas,Gret.imag)
     #plt.show()
-    return Gret#*(-1)**(m+n)
+    return Gret*(-1)**(m+n)
 
 #calcRetardedFromInv_a(omegas,20,Gamma,V[0],Om[0],10,-10)
 #print(bla)

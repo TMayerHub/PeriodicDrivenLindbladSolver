@@ -116,7 +116,7 @@ def calculateWigner_t(_input,ex_val,mode,Tau,t):
     times=t[:, np.newaxis] + Tau/2
     integrand=np.exp(1j*mode*Om*times)*ex_val
     #integrand=ex_val
-    return np.trapz(integrand,t,axis=0)/period
+    return np.trapezoid(integrand,t,axis=0)/period
     
  
 def RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
@@ -374,15 +374,18 @@ def calculateCurrent(_input,_output,sites):
             
             T_ij=T[int(len(T)/2)+i]
             for site1 in _output['results']:
+                print(site1['sites'])
                 if site1['sites'] == str(i)+' '+str(j):
+                    print('site1 found')
                     adag_aij=np.array(site1['a+_a'])[:,0]
                     
             for site2 in _output['results']:
                 if site2['sites'] == str(j)+' '+str(i):
+                    print('site2 found')
                     adag_aji=np.array(site2['a+_a'])[:,0]
             
-            current.append(-1j*(T_ij*adag_aij-np.conj(T_ij)*adag_aji))
-    return sites,current
+            current.append(1j*(T_ij*adag_aij-np.conj(T_ij)*adag_aji))
+    return sites,np.array(current)
             
     
     
@@ -456,7 +459,7 @@ def calcGreen(_input,component):
 def calculateWignerFromFile(file,mode_max,components,sites):
     
     _input,_output=loadTimeJson(file)
-    print(_input)
+    #print(_input)
     wigner_dic={}
     for site in sites:
         wigner_dic[site]={}
@@ -493,12 +496,12 @@ def calculateWignerFromFile(file,mode_max,components,sites):
                     wigner_dic[site['sites']]['greater']=GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag)
                 if comp=='keldysh':
                     wigner_dic[site['sites']]['keldysh']=KeldyshWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag)
-        return sites,omegas,wigner_dic
+    return sites,omegas,wigner_dic
 
 def calculateFloquetFromFile(file,modes,components,sites):
     
     _input,_output=loadTimeJson(file)
-    print(_input)
+    #print(_input)
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1 
@@ -531,6 +534,7 @@ def calculateFloquetFromFile(file,modes,components,sites):
                     if site2['sites'] == str(site1)+' '+str(site0):
                         adag_a1=np.array(site2['a+_a'])
                         a_adag1=np.array(site2['a_a+'])
+
             adag_a=[adag_a0,adag_a1]
             a_adag=[a_adag0,a_adag1]
             
@@ -548,7 +552,57 @@ def calculateFloquetFromFile(file,modes,components,sites):
                     floquet_dic[site['sites']]['keldysh']=KeldyshFloquet(_input,modes,t,Tau_total,adag_a,a_adag)
         return sites,omegas_center,floquet_dic
 
-#file='class_structure/results/U0V1Om1_20250318-072625.json'
+def calculateCurrentFromFile(file,sites):
+    _input,_output=loadTimeJson(file)
+    Om=_input['parameters']['frequency']
+    if Om==0:
+        period=1
+    else:
+        period=np.pi*2/Om
+    print(_input)
+    t=np.array(_output['t'])
+    sites,current=calculateCurrent(_input,_output,sites)
+
+    print('from equal time')
+    print('sites: ',sites)
+    print('cureent: ',np.trapezoid(current,t)/period)
+    return sites,current
+
+def calculateCurrentFromKeldysh(file,sites):
+    _input,_output=loadTimeJson(file)
+    #print(_input)
+    calculateWignerFromFile(file,0,['keldysh'],sites)
+    current=[]
+    for site in sites:
+        if site=='-1 -1' or site=='1 1':
+            print('end')
+        else:
+            T=_input['parameters']['hopping']*np.ones(2)
+            if site[0]=='-':
+                i=int(site[0:2])
+                j=int(site[3])
+            else:
+                i=int(site[0])
+                j=int(site[2])
+            if not(abs(i-j)==1):
+                raise ValueError('not neighbours')
+            
+            T_ij=T[int(len(T)/2)+i]
+            sites_dic,omegas,dic_ij=calculateWignerFromFile(file,0,['keldysh'],[str(i)+' '+str(j)])
+            sites_dic,omegas,dic_ji=calculateWignerFromFile(file,0,['keldysh'],[str(j)+' '+str(i)])
+            kel_ij=dic_ij[str(i)+' '+str(j)]['keldysh'][0]
+            kel_ji=dic_ji[str(j)+' '+str(i)]['keldysh'][0]
+            
+            current.append(np.trapezoid(-T_ij*kel_ij+np.conj(T_ij)*kel_ji,omegas)/(2*np.pi)/2)
+        print('from keldysh')
+        print('sites: ',sites)
+        print('current: ',current)
+        return sites, current
+
+file='class_structure/results/U1V1Om1_20250325-212458.json'
+
+calculateCurrentFromFile(file,['0 1'])
+calculateCurrentFromKeldysh(file,['0 1'])
 #calculateFloquetFromFile(file,[2,2],['greater'],['0 0'])
 
 #_input,_output=loadTimeJson('results/U0V1Om1_20250212-092450.json')

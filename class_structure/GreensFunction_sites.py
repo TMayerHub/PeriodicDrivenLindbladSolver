@@ -7,7 +7,7 @@ Created on Mon Dec  2 08:02:54 2024
 """
 
 import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = ("True")  # uncomment this line if omp error occurs on OSX for python 3
+os.environ["KMP_DUPLICATE_LIB_OK"] = ("True") 
 os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
 os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
 import json
@@ -596,7 +596,6 @@ class calculateGreensFunction:
             Tau, Lesser, Greater,rhos_a,rhos_adag,diff=self.stepsGreaterLesser(
                                   sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                                   )#LindbladM,LindbladP)
-            print('diff',diff)
             Tau_last=Tau[-1]
 
             if self.Tau is None:
@@ -610,7 +609,8 @@ class calculateGreensFunction:
                 self.a_adag=np.concatenate((self.a_adag,Greater),axis=1)
             i+=1
             print(Tau[-1])
-            print(diff)
+            print('diff',diff)
+            print()
         return t,self.Tau,self.adag_a,self.a_adag 
     
     #@njit(parallel=True)
@@ -662,13 +662,13 @@ class calculateGreensFunction:
         rhos_Tau_a=np.zeros(rhos_a.shape)+0j
         rhos_Tau_adag=np.zeros(rhos_a.shape)+0j
         times=Tau[:, np.newaxis] + t
-        print('trying t')
-        print(np.shape(rhos_a),np.shape(np.conj([t])),np.shape(times))
+        #print('trying t')
+        #print(np.shape(rhos_a),np.shape(np.conj([t])),np.shape(times))
         
         #print('parallel')
         col_int=32
         for jstart in range(0,len(rhos_a[0,:]),col_int):
-            print(jstart)
+            #print(jstart)
             if jstart +col_int > len(rhos_a[0,:]):
                 jend=len(rhos_a[0,:])
             else:
@@ -685,7 +685,7 @@ class calculateGreensFunction:
             Greater[jstart:jend]=np.array(Greater_j)
             rhos_Tau_a[:,jstart:jend]=np.column_stack(rhos_Tau_a_j)
             rhos_Tau_adag[:,jstart:jend]=np.column_stack(rhos_Tau_adag_j)
-            print('sleeping')
+            #print('sleeping')
             time.sleep(0.5)  # Pause execution for 2 seconds to clear swap
 
             # Force garbage collection 
@@ -728,11 +728,12 @@ class calculateGreensFunction:
             
         for i in range(len(sites)):
             if len(res_sites[i]['a+_a real'][0])<len(Tau_res):
+                
                 zeros=np.zeros(len(Tau_res)-len(res_sites[i]['a+_a real'][0])).tolist()
-                res_sites[i]['a+_a real'] = res_sites[i]['a+_a real'].append(zeros)
-                res_sites[i]['a+_a imag'] = res_sites[i]['a+_a imag'].append(zeros)
-                res_sites[i]['a_a+ real'] = res_sites[i]['a_a+ real'].append(zeros)
-                res_sites[i]['a_a+ imag'] = res_sites[i]['a_a+ imag'].append(zeros)
+                res_sites[i]['a+_a real'].append(zeros)
+                res_sites[i]['a+_a imag'].append(zeros)
+                res_sites[i]['a_a+ real'].append(zeros)
+                res_sites[i]['a_a+ imag'].append(zeros)
                 
         
                
