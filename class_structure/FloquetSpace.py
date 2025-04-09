@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import multiprocessing
 import os
 
-print(multiprocessing.cpu_count())
-print(os.cpu_count())
+#print(multiprocessing.cpu_count())
+#print(os.cpu_count())
 #print(len(os.sched_getaffinity(0)))
 
 def loadTimeJson(filePath):
@@ -131,7 +131,7 @@ def RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
     #plt.figure()
     #plt.title('test retarded')
     for m in range(-mode_max,mode_max+1):
-        print('modes in retarded:',m,m+mode_max)
+        #print('modes in retarded:',m,m+mode_max)
         a_adagWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(_input,a_adag[0],m,Tau,t)))
         adag_a_conjWigner0=np.concatenate((np.zeros(len(Tau)-1),calculateWigner_t(_input,np.conj(adag_a[0]),m,Tau,t)))
 
@@ -435,9 +435,12 @@ def calculateWigner(_output,mode_max,components,sites):
                
 def calcGreen(_input,component):
     eps=_input['parameters']['epsilon']
-    gamma1=np.diag(_input['parameters']['coupling_empty'],0)
-    gamma2=np.diag(_input['parameters']['coupling_full'],0)
-    hopping=_input['parameters']['hopping']*np.ones(len(eps)-1)
+    #gamma1=np.diag(_input['parameters']['coupling_empty'],0)
+    #gamma2=np.diag(_input['parameters']['coupling_full'],0)
+    gamma1=np.array(_input['parameters']['coupling_emptyReal'])+1j*np.array(_input['parameters']['coupling_emptyImag'])
+    gamma2=np.array(_input['parameters']['coupling_fullReal'])+1j*np.array(_input['parameters']['coupling_fullImag'])
+    #hopping=_input['parameters']['hopping']*np.ones(len(eps)-1)
+    hopping=_input['parameters']['hopping'][:-1]
     hopping_left=np.conj(hopping)
     
     E=np.diag(eps,0)+np.diag(hopping,1)+np.diag(hopping_left,-1)
@@ -445,14 +448,14 @@ def calcGreen(_input,component):
     Gamma_minus=gamma2-gamma1
     i0=component[0]+int(np.floor(len(eps)/2))
     i1=component[1]+int(np.floor(len(eps)/2))
-    omegas=np.linspace(-5,5,1000)
+    omegas=np.linspace(-10,10,1000)
     Gr=np.zeros(len(omegas))*1j
     Gk=np.zeros(len(omegas))*1j
     for i in range(len(omegas)):
         omega=np.diag(omegas[i]*np.ones(len(eps)))
         Gr_matrix=np.linalg.inv(omega-E+1j*Gamma_plus)
         Gr[i]=Gr_matrix[i0,i1]
-        Gk_matrix=2j*Gr_matrix@Gamma_minus@(np.conj(Gr_matrix))
+        Gk_matrix=2j*Gr_matrix@Gamma_minus@(np.conj(Gr_matrix).T)
         Gk[i]=Gk_matrix[i0,i1]
     return omegas,Gr,Gk
 
@@ -488,8 +491,8 @@ def calculateWignerFromFile(file,mode_max,components,sites):
             a_adag=[a_adag0,a_adag1]
             
             for comp in components:
-                if comp=='retarted':
-                    wigner_dic[site['sites']]['retarted']=RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag)
+                if comp=='retarded':
+                    wigner_dic[site['sites']]['retarded']=RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag)
                 if comp=='lesser':
                     wigner_dic[site['sites']]['lesser']=LesserWigner(_input,mode_max,site,t,Tau_total,adag_a)
                 if comp=='greater':
@@ -599,10 +602,36 @@ def calculateCurrentFromKeldysh(file,sites):
         print('current: ',current)
         return sites, current
 
-file='class_structure/results/U1V1Om1_20250325-212458.json'
+# file='class_structure/results/U0V0Om0_20250408-134137.json'
+# _input,_output=loadTimeJson(file)
 
-calculateCurrentFromFile(file,['0 1'])
-calculateCurrentFromKeldysh(file,['0 1'])
+# sites,omegas_wigner,wigner_dic=calculateWignerFromFile(file,0,['retarded','keldysh','greater','lesser'],['0 0'])
+# omegas,Gr,Gk=calcGreen(_input,[0,0])
+# print(_input)
+# print(len(omegas_wigner))
+# om_start=10
+# mask=(omegas_wigner > -om_start) & (omegas_wigner < om_start)
+# plt.figure()
+# plt.title('retarded')
+# plt.plot(omegas,Gr.imag)
+# plt.plot(omegas_wigner[mask],wigner_dic['0 0']['retarded'][0][mask].imag,linestyle='dashed')
+# plt.plot(omegas,Gr.real)
+# plt.plot(omegas_wigner[mask],wigner_dic['0 0']['retarded'][0][mask].real,linestyle='dashed')
+# #plt.show(block=False)
+# plt.show(block=False)
+
+# plt.figure()
+# plt.title('keldysh')
+# plt.plot(omegas,Gk.imag)
+# plt.plot(omegas_wigner[mask],wigner_dic['0 0']['greater'][0][mask].imag)
+# plt.plot(omegas_wigner[mask],wigner_dic['0 0']['lesser'][0][mask].imag)
+# plt.plot(omegas_wigner[mask],wigner_dic['0 0']['keldysh'][0][mask].imag,linestyle='dashed')
+# plt.plot(omegas_wigner[mask],wigner_dic['0 0']['greater'][0][mask].real)
+# plt.show()
+
+#calculateCurrentFromFile(file,['0 1'])
+#calculateCurrentFromKeldysh(file,['0 1'])
+
 #calculateFloquetFromFile(file,[2,2],['greater'],['0 0'])
 
 #_input,_output=loadTimeJson('results/U0V1Om1_20250212-092450.json')

@@ -94,7 +94,7 @@ class createLindblad:
         
         if np.isscalar(self.Gamma1):
             if self.L == 1:
-                self.Gamma1 = [self.Gamma1]
+                self.Gamma1 = np.array([[self.Gamma1]])
             
             else:
                 self.Gamma1 = np.ones(self.L)*self.Gamma1
@@ -108,7 +108,7 @@ class createLindblad:
         
         if np.isscalar(self.Gamma2):
             if self.L == 1:
-                self.Gamma2 = [self.Gamma2]
+                self.Gamma2 = np.array([[self.Gamma2]])
             
             else:
                 self.Gamma2 = np.ones(self.L)*self.Gamma2
@@ -119,20 +119,33 @@ class createLindblad:
                               same coupling on every site (except for the central site
                                where gamma1 = 0)"""
                               ,category=UserWarning)
-        
+        #print('gamma shape',len(np.shape(self.Gamma1)))
+        if len(np.shape(self.Gamma1))==1:
+            self.Gamma1=np.diag(self.Gamma1)
+        #print(self.Gamma1)
+        if len(np.shape(self.Gamma2))==1:
+            self.Gamma2=np.diag(self.Gamma2)
+
         sym = True
         for parameter_name,name in zip(['eps', 'T', 'Gamma1', 'Gamma2'],
                                        ['epsilon', 'hopping', 'coupling_empty', 'coupling_full']):
             parameter = getattr(self, parameter_name)
+            #print(name)
             if not(len(parameter)==self.L or len(parameter)==2*self.L):
                    raise ValueError(f''''the lenght of the parameterlist for
                                     {name} has invalid length it should be a scalar
                                     L or 2L long''')
                                     
             if len(parameter)==self.L:
-                parameter=np.concatenate((parameter,parameter))
+                if parameter_name=='Gamma1' or parameter_name=='Gamma2':
+                    N=parameter.shape[0]
+                    parameter_new=np.zeros((2*N, 2*N), dtype=parameter.dtype)
+                    parameter_new[:N, :N] = parameter
+                    parameter_new[N:2*N, N:2*N] = parameter
+                else:
+                    parameter_new=np.concatenate((parameter,parameter))
                 
-                setattr(self, parameter_name, parameter)
+                setattr(self, parameter_name, parameter_new)
             
             if len(parameter)==2*self.L and not((parameter[:self.L]==parameter[self.L:]).all()):
                 sym = False
@@ -168,6 +181,7 @@ class createLindblad:
     
     def defineH_super(self):
         L=self.L
+        self.T=self.T[:-1]
         T_c=np.conjugate(self.T)
        #Hamiltonian acting on Fockspace (Fockspace are the odd sites)  
         hop_left_up = [[self.T[int((i-1)/2)],i,(i+2)] for i in range(1,2*L-2,2)] 
@@ -232,30 +246,49 @@ class createLindblad:
     #removes particels from the system
     def define_Dissipators1(self):
         L=self.L
+        
         #mixed Fock and augmented
-        part1 = [[-2j*self.Gamma1[int(i/2)],(i+1),i] for i in range(0,4*L,2)]
+        part1 = []
+        #print(self.Gamma1)
+        for i in range(0, 4*L, 2):
+            for j in range(1, 4*L, 2):
+                gamma_value = self.Gamma1[int(i/2), int((j-1)/2)]
+                #print(gamma_value, i, j)  # This will print the values
+                part1.append([-2j * gamma_value, j, i])  # Adding to part1 list
+        #part1 = [[-2j*self.Gamma1[int(i/2),int((j-1)/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
         #Fock
-        part2 = [[-1*self.Gamma1[int((i-1)/2)],i,i] for i in range(1,4*L,2)]
+        part2 = [[-1*self.Gamma1[int((i-1)/2),int((j-1)/2)],i,j] for i in range(1,4*L,2) for j in range(1,4*L,2)]
         #augmented
-        part3 = [[-1*self.Gamma1[int((i)/2)],i,i] for i in range(0,4*L,2)]
+        part3 = [[-1*self.Gamma1[int((i)/2),int((j)/2)],j,i] for i in range(0,4*L,2) for j in range(0,4*L,2)]
 
         static=[
             ["--",part1],
             ["+-",part2],
             ["+-",part3],  
             ]
+        
         dynamic=[]
+        h1=hamiltonian([["--",part1]],dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
+        #print(h1.basis)
+        #print('h1')
+        #print(h1)
+        h2=hamiltonian([["+-",part2]],dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
+        #print('h2')
+        #print(h2)
+        h3=hamiltonian([["+-",part3]],dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
+        #print('h3')
+        #print(h3)
         return hamiltonian(static,dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
     
     #add particels to the system
     def define_Dissipators2(self):
         L = self.L
         #mixed
-        part1 = [[-2j*self.Gamma2[int(i/2)],(i+1),(i)] for i in range(0,4*L,2)]
+        part1 = [[-2j*self.Gamma2[int(i/2),int((j-1)/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
         #fock
-        part2 = [[-1*self.Gamma2[int((i-1)/2)],i,i] for i in range(1,4*L,2)]
+        part2 = [[-1*self.Gamma2[int((i-1)/2),int((j-1)/2)],i,j] for i in range(1,4*L,2) for j in range(1,4*L,2)]
         #augmented
-        part3 = [[-1*self.Gamma2[int((i)/2)],i,i] for i in range(0,4*L,2)]
+        part3 = [[-1*self.Gamma2[int((i)/2),int((j)/2)],j,i] for i in range(0,4*L,2) for j in range(0,4*L,2)]
         
         static=[
             ["++",part1],
@@ -267,22 +300,59 @@ class createLindblad:
     
         return hamiltonian(static,dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
     
+    def define_Dissipators(self):
+        L = self.L
+        #mixed
+        part1_empty = [[-2j*self.Gamma1[int(i/2),int((j-1)/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
+        #part1_empty = [[-2j*self.Gamma1[int((j-1)/2),int(i/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
+        #Fock
+        part2_empty = [[-1*self.Gamma1[int((i-1)/2),int((j-1)/2)],i,j] for i in range(1,4*L,2) for j in range(1,4*L,2)]
+        #part2_empty = [[-1*self.Gamma1[int((j-1)/2),int((i-1)/2)],i,j] for i in range(1,4*L,2) for j in range(1,4*L,2)]
+        #augmented
+        part3_empty = [[-1*self.Gamma1[int((i)/2),int((j)/2)],j,i] for i in range(0,4*L,2) for j in range(0,4*L,2)]
+        #part3_empty = [[-1*self.Gamma1[int((j)/2),int((i)/2)],j,i] for i in range(0,4*L,2) for j in range(0,4*L,2)]
+
+        #mixed
+        #part1_full = [[-2j*self.Gamma2[int(i/2),int((j-1)/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
+        part1_full = [[-2j*self.Gamma2[int((j-1)/2),int(i/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
+        #fock
+        #part2_full = [[-1*self.Gamma2[int((i-1)/2),int((j-1)/2)],i,j] for i in range(1,4*L,2) for j in range(1,4*L,2)]
+        part2_full = [[-1*self.Gamma2[int((j-1)/2),int((i-1)/2)],i,j] for i in range(1,4*L,2) for j in range(1,4*L,2)]
+        #augmented
+        #part3_full = [[-1*self.Gamma2[int((i)/2),int((j)/2)],j,i] for i in range(0,4*L,2) for j in range(0,4*L,2)]
+        part3_full = [[-1*self.Gamma2[int((j)/2),int((i)/2)],j,i] for i in range(0,4*L,2) for j in range(0,4*L,2)]
+        
+        static=[
+            ["--",part1_empty],
+            ["+-",part2_empty],
+            ["+-",part3_empty],  
+            ["++",part1_full],
+            ["-+",part2_full],
+            ["-+",part3_full],
+            ]
+
+        dynamic=[]
+        return hamiltonian(static,dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
+    
     def get_staticLindblad(self):
 
         H_super=self.defineH_super(self)
-        D1=self.define_Dissipators1(self)
-        D2=self.define_Dissipators2(self)
-    
+        #D1=self.define_Dissipators1(self)
+        #D2=self.define_Dissipators2(self)
+        D=self.define_Dissipators(self)
         #return -1j*H_super+D1+D2
-        return H_super+1j*(D1+D2)  # multiply by -i due to .evolve structure
+        #return H_super+1j*(D1+D2)  # multiply by -i due to .evolve structure
+        return H_super+1j*(D)
     
     def get_dynamicLindblad(self):
         H_super=self.defineH_super()
-        D1=self.define_Dissipators1()
-        D2=self.define_Dissipators2()
+        #D1=self.define_Dissipators1()
+        #D2=self.define_Dissipators2()
+        D=self.define_Dissipators()
     
         #return -1j*H_super+D1+D2
-        return H_super+1j*(D1+D2)
+        #return H_super+1j*(D1+D2)
+        return H_super+1j*(D)
     
     def exact_Diagonalization(self):
         L_static_csr=self.operator.as_sparse_format()

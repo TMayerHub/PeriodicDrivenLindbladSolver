@@ -38,13 +38,15 @@ parameters5 = {"length": 5,
 }
 
 parameters3 = {"length": 3,
-              "epsilon": [1,0,-1],
-              "hopping": 0.3,
+              "epsilon": [-4,0,4],
+              "hopping": [3,3,0],
               "interaction":0,
               "drive": 0,
               "frequency":0,
-              "coupling_empty":np.array([[0.9,0,0.0],[0,0,0],[0.0,0,0.6]]),
-              "coupling_full":np.array([[0.6,0,0.2],[0,0,0],[0.2,0,0.9]]),
+              #"coupling_empty":np.array([[2,0,0.2],[0,0,0],[0.2,0,0.6]])*2,
+              #"coupling_full":np.array([[0.6,0,0.1],[0,0,0],[0.1,0,2]])*2,
+              "coupling_empty":np.array([[0.7,0,0.4+0.8j],[0,0,0],[0.4-0.8j,0,5]]),
+              "coupling_full":np.array([[5,0,0.4+0.8j],[0,0,0],[0.4-0.8j,0,0.7]]),
               "spin_symmetric":False,
 }
 
@@ -131,7 +133,7 @@ GF0=calculateGreensFunction(parameters3,[[0,0]],'up')
 
 #print((GF0_sym.plus_lV.T.conjugate()@a))
 #n=GF0.plot_n(0,500)
-GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=100,
+GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=1000,
                    av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
                     dirName='class_structure/results')
 print('total time: ',time.time()-t_start)

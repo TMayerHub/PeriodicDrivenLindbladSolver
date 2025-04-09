@@ -6,7 +6,11 @@ Created on Mon Dec  2 08:02:54 2024
 @author: theresa
 """
 
+import sys
 import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+#if current_dir not in sys.path:
+#    sys.path.append(current_dir)
 os.environ["KMP_DUPLICATE_LIB_OK"] = ("True") 
 os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
 os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
@@ -15,8 +19,8 @@ import json
 #os.environ["MKL_NUM_THREADS"] = str(4)
 #os.environ['OMP_NUM_THREADS'] = '4'
 
-from Lindblatt import createLindblad
-from augmented_basis import augmented_basis
+from class_structure.Lindblatt import createLindblad
+from class_structure.augmented_basis import augmented_basis
 
 from quspin.operators import hamiltonian
 
@@ -66,10 +70,10 @@ class calculateGreensFunction:
         self.basisM=self._basisM()
         self.basisP=self._basisP()
         print('end define basis')
-        print(self.basis0.Ns)
-        print(self.basisE.Ns)
-        print(self.basisM.Ns)
-        print(self.basisP.Ns)
+        #print(self.basis0.Ns)
+        #print(self.basisE.Ns)
+        #print(self.basisM.Ns)
+        #print(self.basisP.Ns)
         
         self.leftVacuum=self._leftVacuum()
         #self.plus_lV=self.plus_leftVacuum()
@@ -704,7 +708,7 @@ class calculateGreensFunction:
 
     def _GreaterLesserSites(self,sites,dt=0.05,eps=1e-12,max_iter=1000,
                         av_periods=5,tf=5e2,t_step=1e2,av_Tau=10,writeFile=False,
-                        dirName=None):
+                        dirName=None,file_name=None,fit_parameters=None):
         
         res_sites=[]
         t_res=[]
@@ -736,11 +740,21 @@ class calculateGreensFunction:
                 res_sites[i]['a_a+ imag'].append(zeros)
                 
         
-               
+        parameters_json = {key: value.tolist() if isinstance(value, np.ndarray) else value
+                   for key, value in self.parameters.items()}
+        
+        parameters_json['coupling_emptyImag']=np.imag(parameters_json['coupling_empty']).tolist()
+        parameters_json['coupling_emptyReal']=np.real(parameters_json['coupling_empty']).tolist()
+        parameters_json['coupling_fullImag']=np.imag(parameters_json['coupling_full']).tolist()
+        parameters_json['coupling_fullReal']=np.real(parameters_json['coupling_full']).tolist()
+
+        del parameters_json['coupling_empty']
+        del parameters_json['coupling_full']
+
         if writeFile:
             timestr = time.strftime("%Y%m%d-%H%M%S")
             _input = {
-                'parameters':self.parameters,
+                'parameters':parameters_json,
                 'spin':self.spin,
                 'sites':sites,
                 'time_param': {'dt':dt,
@@ -753,7 +767,8 @@ class calculateGreensFunction:
 
                                }
                 }
-            
+            if not(fit_parameters == None):
+                _input['fit_parameters'] = fit_parameters
             _output={
                        't':t_res,
                        'Tau':Tau_res,
@@ -764,11 +779,16 @@ class calculateGreensFunction:
                        'input':_input,
                        'output':_output,
                        }
+            if dirName:
+                os.makedirs(dirName, exist_ok=True)
+            if file_name==None:
+                filename = ('U'+str(self.parameters['interaction']) +
+                'V'+str(self.parameters['drive'])+
+                'Om'+str(self.parameters['frequency'])+
+                '_'+timestr+'.json')
             
-            filename = ('U'+str(self.parameters['interaction']) +
-            'V'+str(self.parameters['drive'])+
-            'Om'+str(self.parameters['frequency'])+
-             '_'+timestr+'.json')
+            else:
+                filename=file_name
             
             filepath=os.path.join(dirName, filename )
             
@@ -808,7 +828,7 @@ class calculateGreensFunction:
                 diff_period=1
                 break
             t_period_diff=t[-(1+j)*N_period-1:-j*N_period]
-            print(len(t_period_diff))
+            #print(len(t_period_diff))
             diff_period+=np.sum(np.trapz(abs(rhos[:,-N_period-1:]-rhos[:,-(j+1)*N_period-1:-j*N_period]),t_period_diff,axis=1))/period/len(rhos)/av_periods
         num_periods_step=int(np.ceil(t_step/period))
 
@@ -822,8 +842,8 @@ class calculateGreensFunction:
             
             t_total=np.append(t_total,t)
             rhos_total=np.append(rhos_total,rhos,axis=1)
-            print(t_total.shape)
-            print(rhos_total.shape)
+            #print(t_total.shape)
+            #print(rhos_total.shape)
                 
             if i>max_iter:
                 if return_all:
