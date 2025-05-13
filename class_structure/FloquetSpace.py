@@ -208,14 +208,13 @@ def RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
     if Om==0:
         Om=1
     
-    
     Tau=Tau_total[int(np.floor(len(Tau_total))/2):]
     Tau_minus=np.flip(Tau[1:])*(-1)
     norm=abs(Tau_total[-1]-Tau_total[0])/len(Tau_total)
     #floquet_retarted=np.empty((2*modes[0]+1, 2*modes[1]+1), dtype=object)
     #plt.figure()
     
-    omegas=np.fft.fftfreq(len(Tau_total),Tau[1]-Tau[0])*2*np.pi
+    omegas=np.fft.fftfreq(len(Tau_total),Tau_total[1]-Tau_total[0])*2*np.pi
     omegas=np.fft.fftshift(omegas)
     valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
     omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
@@ -239,6 +238,7 @@ def RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
             floq=floq[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
             omegas_nm=omegas_center+(m+n)/2*Om
             for i in range(l_om):
+                #create the matrix for each omega value between -Om/2 & Om/2
                 floquet_retarted[i,m+modes[0],n+modes[1]]=floq[i]
             #if n==m:
             #    axs[0].plot(omegas_nm,floquet_retarted[:,m+modes[0],n+modes[1]].real,label=n)
@@ -246,6 +246,8 @@ def RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
 
     #plt.legend()
     #plt.show()
+    #print(omegas_center.shape)
+    #print(floquet_retarted.shape)
     return floquet_retarted
 
 def LesserFloquet(_input,modes,t,Tau_total,adag_a):
@@ -522,7 +524,7 @@ def calculateFloquetFromFile(file,modes,components,sites):
     omegas=np.fft.fftshift(omegas)
     valid_floquet_ind=np.where((omegas > -Om/2) & (omegas <= Om/2))[0]
     omegas_center=omegas[valid_floquet_ind[0]:valid_floquet_ind[-1]+1]
-
+    #print(omegas_center.shape)
     for site in _output['results']:
         if site['sites'] in sites:
             site0 = site['sites'][0]

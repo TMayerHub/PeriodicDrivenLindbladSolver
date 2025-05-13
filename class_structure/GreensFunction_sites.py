@@ -670,15 +670,15 @@ class calculateGreensFunction:
         #print(np.shape(rhos_a),np.shape(np.conj([t])),np.shape(times))
         
         #print('parallel')
-        col_int=32
+        col_int=8
         for jstart in range(0,len(rhos_a[0,:]),col_int):
-            #print(jstart)
+            print(jstart)
             if jstart +col_int > len(rhos_a[0,:]):
                 jend=len(rhos_a[0,:])
             else:
                 jend=jstart +col_int
                 
-            results = Parallel(n_jobs=8, backend="threading", prefer="threads",batch_size=8,require='sharedmem')(
+            results = Parallel(n_jobs=4, backend="threading", prefer="threads",batch_size=4,require='sharedmem')(
             delayed(self.evolve_single_step)(rhos_a, rhos_adag, t, Tau, Tau_last,j,plus_lV,minus_lV)
             for j in range(jstart,jend)
             )
@@ -689,12 +689,12 @@ class calculateGreensFunction:
             Greater[jstart:jend]=np.array(Greater_j)
             rhos_Tau_a[:,jstart:jend]=np.column_stack(rhos_Tau_a_j)
             rhos_Tau_adag[:,jstart:jend]=np.column_stack(rhos_Tau_adag_j)
-            #print('sleeping')
-            time.sleep(0.5)  # Pause execution for 2 seconds to clear swap
+            print('sleeping')
+            #time.sleep(0.5)  # Pause execution for 2 seconds to clear swap
 
             # Force garbage collection 
             gc.collect()
-
+            time.sleep(1)
 
         N_av=int(np.ceil(av_Tau/dt))
         Lesser_av_t=np.trapz(abs(Lesser),t,axis=0)/(t[-1]-t[0])
