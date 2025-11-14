@@ -32,7 +32,7 @@ omegas=np.linspace(-4, 4,20001)
 Gr_l=np.zeros((len(l),len(omegas)))+0j
 #plt.figure()
 for i in range(len(Gr_l)):
-    print(l[i])
+    #print(l[i])
     Gr_l[i]=1/(omegas+l[i]*Om+1j*eta)*np.trapz(fx(x,l[i]),x)*np.trapz(fy(y,l[i]),y)
 
 #sum over l
@@ -48,6 +48,7 @@ plt.plot(omegas,0*omegas)
 plt.plot(omegas,spectrum,label='spectrum')
 
 #%%
+print('start')
 #use definition of heaviside, no gamma#
 ###############################################################################
 omegas=np.linspace(-10,10,1000)
@@ -69,14 +70,15 @@ for j in range(len(T)):
     #t=t_abs
     for i in range(len(t)):
         G_T_t[i,j]=(-1j)*np.heaviside(T[j],0.5)*np.exp(-1j*(V/Om)*(np.sin(Om*(t[i]+T[j]))-np.sin(Om*t[i]))-gamma*T[j])
-    if T[j]==0:
-        print(np.heaviside(T[j],0.5))
-        plt.figure()
-        plt.plot(t,np.real(G_T_t[:,j]))
-        plt.plot(t,np.imag(G_T_t[:,j]))
+    #if T[j]==0:
+        #print(np.heaviside(T[j],0.5))
+        #plt.figure()
+        #plt.plot(t,np.real(G_T_t[:,j]))
+        #plt.plot(t,np.imag(G_T_t[:,j]))
+print('finished loop')
 GT=np.trapz(G_T_t,t,axis=0)/period   
 #GT=(-1j)*np.heaviside(T,0.5)*np.exp(-1j*(V/Om)*(np.sin(Om*(500+T))-np.sin(Om*500))-gamma*T)
-print(GT[-1])
+#print(GT[-1])
 plt.ion()
 start=int(len((T)-1)/2)-100
 end=start+int(np.ceil(start/2))+100
@@ -97,7 +99,10 @@ ax[1].set_title('imaginary')
 ax[1].set_xlabel('T')
 ax[1].set_ylabel('t')
 fig.tight_layout()
-
+plt.show()
+fig.savefig("debug_plot.png")
+print('meshgrid')
+print(X.shape, Y.shape, np.real(G_T_t[:, start:end]).shape)
 plt.figure()
 plt.title('GT')
 plt.plot(T,np.imag(GT))
@@ -106,8 +111,8 @@ plt.plot(T,np.real(GT))
 GT_2=np.array([GT]).transpose()
 T_2=np.array([T]).transpose()
 
-print(np.shape(np.array([omegas])),np.shape(T_2))
-print(np.shape(np.exp(1j*T_2@np.array([omegas]))),np.shape(GT_2))
+#print(np.shape(np.array([omegas])),np.shape(T_2))
+#print(np.shape(np.exp(1j*T_2@np.array([omegas]))),np.shape(GT_2))
 
 #calculate fft with trapz
 Gr_2=np.trapz(np.exp(1j*T_2@np.array([omegas]))*GT_2,T,axis=0)
@@ -143,8 +148,8 @@ plt.plot(Tau,np.imag(G_Tau))
 G_Tau_2=np.array([G_Tau]).transpose()
 Tau_2=np.array([Tau]).transpose()
 
-print(np.shape(np.array([omegas])),np.shape(Tau_2))
-print(np.shape(np.exp(1j*Tau_2@np.array([omegas]))),np.shape(G_Tau_2))
+#print(np.shape(np.array([omegas])),np.shape(Tau_2))
+#print(np.shape(np.exp(1j*Tau_2@np.array([omegas]))),np.shape(G_Tau_2))
 
 #calculate fft with trapz
 Gr_2=np.trapz(np.exp(1j*Tau_2@np.array([omegas]))*G_Tau_2,Tau,axis=0)
@@ -186,9 +191,9 @@ times=t@tau
 Tau=np.ones(np.shape(t))@tau
 #define Green's function in time according to equation of motion
 Gt_Tau=-1j*np.heaviside(Tau,0.5)*np.exp(-1j*V/Om*np.sin(Om*times)-gamma*abs(Tau))
-print(np.shape(Gt_Tau))
+#print(np.shape(Gt_Tau))
 GTau=np.trapz(Gt_Tau,t[:,0],axis=0)/period
-print(GTau.shape)
+#print(GTau.shape)
 #GTau=GTau[0]
 
 #plot function in time domain
@@ -201,8 +206,8 @@ plt.plot(tau[0],np.imag(GTau))
 G_Tau_2=np.array([GTau]).transpose()
 Tau_2=tau.transpose()
 
-print(np.shape(np.array([omegas])),np.shape(Tau_2))
-print(np.shape(np.exp(1j*Tau_2@np.array([omegas]))),np.shape(G_Tau_2))
+#print(np.shape(np.array([omegas])),np.shape(Tau_2))
+#print(np.shape(np.exp(1j*Tau_2@np.array([omegas]))),np.shape(G_Tau_2))
 
 #calculate fft with trapz
 Gr_2=np.trapz(np.exp(1j*Tau_2@np.array([omegas]))*G_Tau_2,tau[0],axis=0)
@@ -226,7 +231,7 @@ i = 0
 t=np.linspace(-period/2+1000,period/2+1000,1000)
 #t=np.linspace(0,period,100)
 norm=0.5/(-1j*np.heaviside(0,0.5)*np.exp(-1j*V/Om*np.sin(Om*(t))))
-print(norm)
+#print(norm)
 for tau in Taus:
     t=np.linspace(-period/2+1000-tau/2,period/2+1000-tau/2,1000)
     if tau>=0:
@@ -247,8 +252,8 @@ plt.plot(Taus,np.imag(G_Tau))
 G_Tau_2=np.array([G_Tau]).transpose()
 Tau_2=np.array([Taus]).transpose()
 
-print(np.shape(np.array([omegas])),np.shape(Tau_2))
-print(np.shape(np.exp(1j*Tau_2@np.array([omegas]))),np.shape(G_Tau_2))
+#print(np.shape(np.array([omegas])),np.shape(Tau_2))
+#print(np.shape(np.exp(1j*Tau_2@np.array([omegas]))),np.shape(G_Tau_2))
 
 #calculate fft with trapz
 Gr_2=np.trapz(np.exp(1j*Tau_2@np.array([omegas]))*G_Tau_2,Taus,axis=0)

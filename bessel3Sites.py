@@ -31,8 +31,9 @@ eta=0
 
 #file1='class_structure/results/U0V1Om1_20250212-092450.json'
 #small file
-file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V1Om1_20250318-072625.json')
-file2 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V2Om1_20250318-071004.json')
+file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', '3sitesAnalytic','U0V1Om1_20250318-072625.json')
+#file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', '3sitesAnalytic','U0V1Om1_20250624-151059.json')
+file2 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', '3sitesAnalytic', 'U0V2Om1_20250318-071004.json')
 #large file
 #file1 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V1Om1_20250317-225539.json')
 #file2 = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'class_structure', 'results', 'U0V2Om1_20250317-152846.json')
@@ -43,7 +44,7 @@ files=[file1,file2]
 
 #valid_indices = np.where((omegasF >= omegas[0]) & (omegasF <= omegas[-1]))[0]
 eps=0
-order_max=1
+order_max=2
 l_max=21
 
 print('test start')
@@ -119,8 +120,8 @@ fig, axs = plt.subplots(2,len(V), figsize=(4.1*len(V), 4),sharex=True, sharey='r
 colors=['#a65628','#f781bf','#a6cee3','#984ea3','#c97b4a']
 colors_a=['#a6cee3','#f781bf','#c97b4a','#64b5cd']
 colors_n=['navy','#984ea3','#a65628','#468c9e']
-sites,omegasF1,wigner_dic=calculateWignerFromFile(file1,order_max,['retarted','lesser','greater','keldysh'],['0 0'])
-sites,omegasF2,wigner_dic=calculateWignerFromFile(file2,0,['retarted','lesser','greater','keldysh'],['0 0'])
+sites,omegasF1,wigner_dic=calculateWignerFromFile(file1,order_max,['retarded','lesser','greater','keldysh'],['0 0'])
+sites,omegasF2,wigner_dic=calculateWignerFromFile(file2,0,['retarded','lesser','greater','keldysh'],['0 0'])
 #print(omegasF[0],omegasF[-1])
 valid_indices1 = np.where((omegasF1 >= omegas[0]) & (omegasF1 <= omegas[-1]))[0]
 omegasF1=omegasF1[valid_indices1[0]:valid_indices1[-1]]
@@ -132,12 +133,12 @@ Gr_error=np.zeros(len(V))
 Gk_error=np.zeros(len(V))
 
 for v in range(len(V)):
-    sites,omegasF,wigner_dic=calculateWignerFromFile(files[v],order_max,['retarted','lesser','greater','keldysh'],['0 0'])
+    sites,omegasF,wigner_dic=calculateWignerFromFile(files[v],order_max,['retarded','lesser','greater','keldysh'],['0 0'])
     valid_indices = np.where((omegasF >= omegas[v][0]) & (omegasF <= omegas[v][-1]))[0]
     omegasF=omegasF[valid_indices[0]:valid_indices[-1]+1]
     #print(bla)
-    print('shape',wigner_dic['0 0']['retarted'].shape)
-    for order in range(-order_max,order_max+1):
+    print('shape',wigner_dic['0 0']['retarded'].shape)
+    for order in range(0,order_max+1):
         if order%2:
             print('if order:',order)
             m=int((order+1)/2)
@@ -159,14 +160,14 @@ for v in range(len(V)):
         
         #axs[0,v].plot(omegas,Gr.real,label=f'order={order}',color=colors[order+order_max-1],linestyle=l_style,linewidth=2)
         
-        #axs[0,v].plot(omegas[v],Gret.imag,label=f'analytic {order}',color=colors_a[order],linewidth=1)
-        #axs[1,v].plot(omegas[v],Gk.imag,label=f'analytic {order}',color=colors_a[order],linewidth=1)
+        axs[0,v].plot(omegas[v],Gret.imag,label=f'analytic {order}',color=colors_a[order],linewidth=1)
+        axs[1,v].plot(omegas[v],Gk.imag,label=f'analytic {order}',color=colors_a[order],linewidth=1)
         #axs[2,v].plot(omegas[v],Gret.real,label=f'analytic {order}',color=colors_a[order],linewidth=1)
         if order>=-5:
             
             #valid_indices = np.where((omegasF >= omegas[0]) & (omegasF <= omegas[-1]))[0]
             
-            GrFile=wigner_dic['0 0']['retarted'][order+order_max]
+            GrFile=wigner_dic['0 0']['retarded'][order+order_max]
             GkFile=wigner_dic['0 0']['keldysh'][order+order_max]
 
             GrFile=GrFile[valid_indices[0]:valid_indices[-1]+1]

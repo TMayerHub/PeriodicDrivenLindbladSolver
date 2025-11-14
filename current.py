@@ -87,12 +87,18 @@ def DelAux(omegas,eps,hopping,gamma1,gamma2):
     DeltaK=1/Gr*Gk*1/np.conj(Gr)
     return DeltaR,DeltaK
 
-def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_params):
+def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_params,t=1/np.sqrt(2)):
+    #t=1
     T_fict=fit_params['T_fict']
     D=fit_params['D']
     T=fit_params['T']
     phi=fit_params['phi']
-    Gamma=1/(2*D)
+    print(t)
+    #t=1/np.sqrt(2)
+    #D=10
+    #T=0.1
+    #T_fict=0.5
+    Gamma=np.pi*t**2/(3*D)
     #+1 to make sure Wigner0 to Floq returns the right size
     n_max=int((GauxR.shape[1]-1)/2)+1
     #print(GauxR.shape)
@@ -113,8 +119,8 @@ def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_para
         GauxR_inv=np.linalg.inv(GauxR[i])
         SigmaR=invG0R_aux[i]-GauxR_inv
         SigmaK=invG0K_aux[i] + GauxR_inv@GauxK[i]@np.conj(GauxR_inv.T)
-        invGR_phys=invG0R_phys[i]-SigmaR
-        invGK_phys=invG0K_phys[i]-SigmaK
+        invGR_phys=invG0R_phys[i]#-SigmaR
+        invGK_phys=invG0K_phys[i]#-SigmaK
         
         Gr_phys_floq.append(np.linalg.inv(invGR_phys))
         Gk_phys_floq.append(-Gr_phys_floq[i]@invGK_phys@np.conj(Gr_phys_floq[i].T))
@@ -124,6 +130,7 @@ def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_para
     #G0_phys=G0FromDyson(del_aux,V,Om,eps=0)
     
     return np.array(Gr_phys_floq),np.array(Gk_phys_floq)
+    
 
 def invG0FloqFromDyson(del_aux,V,Om,eps=0):
     omegas=del_aux[:,0]
@@ -261,10 +268,10 @@ def G0FromSolverSpinSym(Lindblad_params,V,Om,U,fit_params,solver_params=None):
     
     return filename,omegas_wigner,wigner_dic
 
-def deltaTest(T=1/20,t=1,D=15,T_fict=1/2,sites=3,phis=[0]):
+def deltaTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1/2,sites=3,phis=[0]):
     Om=0
     V=0
-    Gamma=t*np.pi/(2*D)
+    Gamma=t**2*np.pi/D
     for phi in phis:
         print(phi)
         muL=phi/2
@@ -305,9 +312,9 @@ def deltaTest(T=1/20,t=1,D=15,T_fict=1/2,sites=3,phis=[0]):
         plt.legend()
         plt.show()
 
-def calcCurrentsTest(T=1/20,t=1,D=15,T_fict=1,V=3,Om=3,sites=3,phis=[0]):
+def calcCurrentsTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,V=3,Om=3,sites=3,phis=[0]):
 
-    Gamma=t*np.pi/(2*D)
+    Gamma=t**2*np.pi/D
 
     chis=[]
     Es_Gr=[]
@@ -456,7 +463,7 @@ def load_all(filename):
         return [],[],[],[],[],[],[],[],[]
     
 def GphysFromFileTest(filepath):
-
+    t=1/np.sqrt(2)
     with open(filepath, 'r') as file:
         data = json.load(file)
     fit_params=data['input']['fit_parameters']
@@ -471,7 +478,7 @@ def GphysFromFileTest(filepath):
     D=fit_params['D']
     T=fit_params['T']
     phi=fit_params['phi']
-    Gamma=1/(2*D)
+    Gamma=t**2*np.pi/D
     n_max=20
     sites,omegas_floq,floq_dic=calculateFloquetFromFile(filepath,[n_max,n_max],['retarded','keldysh'],['0 0'])
     sites,omegas_wig,wig_dic=calculateWignerFromFile(filepath,0,['retarded','keldysh'],['0 0'])
@@ -555,8 +562,9 @@ def GphysFromFile(filepath,rep='wig'):
         #plt.show()
         return omegas,Gr_wig,Gk_wig
 
-def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1,D=15,T_fict=1,plot=False):
-    Gamma=t*np.pi/(2*D)
+def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1/np.sqrt(2),D=15,T_fict=1,plot=False):
+    #Gamma=t*np.pi/(2*D)
+    Gamma=t**2*np.pi/D
 
     if os.path.exists(filename):
         with open(filename, "r") as f:
@@ -586,6 +594,7 @@ def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1,D=1
         
         print(weights)
         fit_params = {'phi':phi,'T':T,'D':D,'T_fict':T_fict,'sites':sites,'weights':weights}
+        #fit_params = {'phi':phi,'T':T,'D':D,'T_fict':T_fict,'sites':sites,'weights':'None'}
         #print(Gamma)
         matrices,chi,del_aux, del_phys=fit.get_parameters(T,muL,muR,D,T_fict,fit.flat_delta,Gamma=Gamma,sites=sites,plot=False,return_phys=True,weights=weights)
 
@@ -664,7 +673,7 @@ def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1,D=1
     plt.legend()
     plt.show()
 
-def checkFit(filename,phis,V,Om,plot=True):
+def checkFit(filename,phis,V,Om,t=1/np.sqrt(2),plot=True):
     if os.path.exists(filename):
         with open(filename, "r") as f:
             fits_dict = json.load(f)
@@ -690,13 +699,13 @@ def checkFit(filename,phis,V,Om,plot=True):
         T=fit_params['T']
         muL=phi/2
         muR=-muL
-        Gamma=np.pi/(2*D)
+        Gamma=np.pi*t**2/D
         H = np.array(matrices['hopping matrix'])
         gamma1 = np.array(matrices['ReG1']) + 1j*np.array(matrices['ImG1'])
         gamma2 = np.array(matrices['ReG2']) + 1j*np.array(matrices['ImG2'])
         eps = np.diag(H)
         hopping = np.diag(H,k=1)
-        omegas_del=np.linspace(-20,20,500)
+        omegas_del=np.linspace(-25,25,500)
         del_auxr,del_auxk=DelAux(omegas_del,eps,hopping,gamma1,gamma2)
         del_physr = - (1 - fermi(omegas_del, -D, 1/T_fict)) * fermi(omegas_del, D, 1/T_fict)*Gamma*1j
         del_physk = del_physr * (1 - 2 * fermi(omegas_del, muL, 1/T)+1 - 2 * fermi(omegas_del, muR, 1/T))
@@ -718,29 +727,41 @@ def checkFit(filename,phis,V,Om,plot=True):
         Gk0_wigner0_aux = Gk0_wigner0_aux[sorted_aux]
 
         if plot:
-            start_aux=np.where(omegas_aux < -10)[0][-1]
-            end_aux=np.where(omegas_aux > 10)[0][0]
-            start_phys=np.where(omegas_phys < -10)[0][-1]
-            end_phys=np.where(omegas_phys > 10)[0][0]
-            plt.figure(figsize=(5, 4))
+            start_aux=np.where(omegas_aux < -20)[0][-1]
+            end_aux=np.where(omegas_aux > 20)[0][0]
+            start_phys=np.where(omegas_phys < -20)[0][-1]
+            end_phys=np.where(omegas_phys > 20)[0][0]
+
+            #start_aux=0
+            #end_aux=-1
+            #start_phys=0
+            #end_phys=-1
+
+            plt.figure(figsize=(5, 3))
             #plt.title(f'non interacting phi = {phi}')
-            plt.plot(omegas_phys[start_phys:end_phys],Gr0_wigner0_phys.imag[start_phys:end_phys],label='retarded phys', color = 'navy')
-            plt.plot(omegas_phys[start_phys:end_phys],Gk0_wigner0_phys.imag[start_phys:end_phys],label='keldysh phys', color = '#a65628')
-            plt.plot(omegas_aux[start_aux:end_aux],Gr0_wigner0_aux.imag[start_aux:end_aux],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(omegas_aux[start_aux:end_aux],Gk0_wigner0_aux.imag[start_aux:end_aux],label='keldysh aux',color = '#f78843',linestyle='dashed')
-            plt.xlabel(r'$\omega/t^_{\prime}$')
-            plt.xlabel(r'$\unterline{G}_0/t^_{\prime-1}$')
+            #plt.plot(omegas_phys[start_phys:end_phys],Gr0_wigner0_phys.imag[start_phys:end_phys],label=r'$G_{0,\text{phys}}^r$', color = 'navy')
+            plt.plot(omegas_phys[start_phys:end_phys],Gk0_wigner0_phys.imag[start_phys:end_phys],label=r'$G_{0,\text{phys}}^k$', color = '#a65628')
+            #plt.plot(omegas_aux[start_aux:end_aux],Gr0_wigner0_aux.imag[start_aux:end_aux],label=r'$G_{0,\text{aux}}^r$',color='#a6cee3',linestyle='dashed')
+            plt.plot(omegas_aux[start_aux:end_aux],Gk0_wigner0_aux.imag[start_aux:end_aux],label=r'$G_{0,\text{aux}}^k$',color = '#f78843',linestyle='dashed')
+            plt.xlabel(r'$\omega/t^{\prime}$')
+            plt.ylabel(r'$\text{Im}(G_0^x)/t^{\prime-1}$')
+            plt.text(-18, -0.3, 'b)', #transform=plt.get_yaxis_transform(),
+            va='top', ha='left', fontsize=10)
             plt.legend()
             plt.show(block=False)
 
-            plt.figure(figsize=(5, 4))
+            plt.figure(figsize=(5, 3))
             #plt.title('Delta')
-            plt.plot(del_phys[:,0],del_phys[:,1],label='retarded phys', color = 'navy')
-            plt.plot(del_phys[:,0],del_phys[:,2],label='keldysh phys', color = '#a65628')
-            plt.plot(del_aux[:,0],del_aux[:,1],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(del_aux[:,0],del_aux[:,2],label='keldysh aux',color = '#f78843',linestyle='dashed')
-            plt.xlabel(r'$\omega/t^_{\prime}$')
-            plt.xlabel(r'$\unterline{\Delta}/t^_{\prime}$')
+            start=np.where(del_phys[:,0] < -20)[0][-1]
+            end=np.where(del_phys[:,0] > 20)[0][0]
+            plt.plot(del_phys[start:end,0],del_phys[start:end,1],label=r'$\Delta_{\text{phys}}^r$', color = 'navy')
+            plt.plot(del_phys[start:end,0],del_phys[start:end,2],label=r'$\Delta_{\text{phys}}^k$', color = '#a65628')
+            plt.plot(del_aux[start:end,0],del_aux[start:end,1],label=r'$\Delta_{\text{aux}}^r$',color='#a6cee3',linestyle='dashed')
+            plt.plot(del_aux[start:end,0],del_aux[start:end,2],label=r'$\Delta_{\text{aux}}^k$',color = '#f78843',linestyle='dashed')
+            plt.xlabel(r'$\omega/t^{\prime}$')
+            plt.ylabel(r'$\text{Im}(\Delta^x)/t^{\prime}$')
+            plt.text(-18, 0.2, 'a)', #transform=plt.get_yaxis_transform(),
+            va='top', ha='left', fontsize=10)
             plt.legend()
             plt.show()
         
@@ -781,8 +802,8 @@ def checkFit(filename,phis,V,Om,plot=True):
     fig, ax1 = plt.subplots(figsize=(5,2.5))
     #ax2 = ax1.twinx()
     ax1.plot(phis,Chis,label=r'$\chi$',color='navy',marker='o',markersize=2)
-    ax1.plot(phis,E_Grs,label=r'$ \delta G_{00}^r$',color='#984ea3',marker='o',markersize=2)
-    ax1.plot(phis,E_Gks,label=r'$ \delta G_{00}^k$',color='#a65628',marker='o',markersize=2)
+    ax1.plot(phis,E_Grs,label=r'$ \delta G_{0}^r$',color='#984ea3',marker='o',markersize=2)
+    ax1.plot(phis,E_Gks,label=r'$ \delta G_{0}^k$',color='#a65628',marker='o',markersize=2)
     #ax1.set_ylim(0,0.6)
     #plt.plot(phis,Gk_ints,label='Error Gk',color='k')
     ax1.set_xlabel(r'$\phi/t^{\prime}$')
@@ -794,7 +815,7 @@ def checkFit(filename,phis,V,Om,plot=True):
     plt.show()
 
 
-def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1,D=15,T_fict=1,solver_params=None,plot=False):
+def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,solver_params=None,plot=False):
     dirName = os.path.join(solver_params['dirName'] , f'V{V}Om{Om}U{U}')
     solver_params['dirName']=dirName
     timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -802,7 +823,7 @@ def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1,D=15,T_fict=1,solver
     filename=f"currents.json"
     filepath=os.path.join(dirName,filename)
     #print(filepath)
-    Gamma=t*np.pi/(2*D)
+    Gamma=t**2*np.pi/D
 
 
     
@@ -897,7 +918,7 @@ def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1,D=15,T_fict=1,solver
     return filepath
 
 def calcCurrentsFromFolder(dirName,phis=[0,1]):
-    t=1
+    t=1/np.sqrt(2)
     current_filename=f"currents.json"
     current_filepath=os.path.join(dirName,current_filename)
     print(current_filepath)
@@ -932,7 +953,7 @@ def calcCurrentsFromFolder(dirName,phis=[0,1]):
         T=fit_params['T']
         muL=phi_value/2
         muR=-muL
-        Gamma=t*np.pi/(2*D)
+        Gamma=t**2*np.pi/D
 
         parameters=input['parameters']
         eps=np.array(parameters['epsilon'])
@@ -1005,13 +1026,15 @@ def runSolverWithFitFile(phis,V,Om,U,filename,solver_params=None):
         #plt.legend()
         # plt.show(block=False)
 
-def plot(filepaths,functions):
+def plotDOS_phi(filepaths,functions):
     #fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), sharey=False)
-    fig, axes = plt.subplots(1, 2, figsize=(6, 3), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(7.5, 3), sharey=True)
     right_axes = [ax.twinx() for ax in axes]
-    for ax in right_axes[1:]:
-        ax.sharey(right_axes[0]) 
+    for ax in right_axes:
+        #ax.sharey(right_axes[0]) 
+        ax.set_ylim(0, 1)
     colors=['navy','#984ea3','#a65628']
+    #colors=['#984ea3','#a65628']
     colors_F = ['#a6cee3','#f781bf', '#c97b4a']
     for i,filepath in enumerate(filepaths):
         with open(filepath, 'r') as file:
@@ -1039,10 +1062,10 @@ def plot(filepaths,functions):
 
             Gr_wig_check=Gr_wig.imag[start:end]
             omegas_F=omegas_wig[start:end]
-            omegas_F=omegas_F[abs(Gr_wig_check)>1e-2]
+            omegas_F=omegas_F[abs(Gr_wig_check)>1e-3]
             F2_wig=1/2*(1-frac/2)
             F2_wig=F2_wig[start:end]
-            F2_wig=F2_wig[abs(Gr_wig_check)>1e-2]
+            F2_wig=F2_wig[abs(Gr_wig_check)>1e-3]
             #F2_wig[abs(Gk_wig.imag)<1e-5]=0
             #plt.plot(omegas_wig[start:end],Gk_wig[start:end].imag,label='Gk')
             #plt.plot(omegas_wig[start:end],F_wig[start:end],label='F',linestyle='dashed')
@@ -1056,9 +1079,11 @@ def plot(filepaths,functions):
             A_wig=-Gr_wig.imag/np.pi
             #plt.plot(omegas_wig[start:end],A_wig[start:end],label=r'$A(\omega)$',color=colors[i], linewidth=1)
             if i==2:
-                axes[i].plot(omegas_wig[start:end],A_wig[start:end],label=r'DOS',color=colors[i], linewidth=1)
+                axes[i].plot(omegas_wig[start:end],A_wig[start:end],label=r'DOS',color=colors[i], linewidth=0.5)
             else:
-                axes[i].plot(omegas_wig[start:end],A_wig[start:end],color=colors[i], linewidth=1,label=r'DOS')
+                axes[i].plot(omegas_wig[start:end],A_wig[start:end],color=colors[i], linewidth=0.5,label=r'DOS')
+            print(np.trapezoid(A_wig,omegas_wig))
+        
         if "N" in functions:
             N2_wig=(1/2*Gk_wig-1j*Gr_wig.imag)/(2*np.pi)
 
@@ -1079,14 +1104,14 @@ def plot(filepaths,functions):
         
         #drawing the chemical potential
         ylim = axes[i].get_ylim()
-        right_axes[i].axvline(x=phi/2, color='black', linestyle='--', linewidth=1,zorder=10)
-        axes[i].text(phi/2+0.2, ylim[1]/2, r'$\mu_r$', #transform=axes[i].get_yaxis_transform(),
-        va='top', ha='left', fontsize=8)
-        right_axes[i].axvline(x=-phi/2, color='black', linestyle='--', linewidth=1,zorder=10)
-        axes[i].text(-phi/2-0.2, ylim[1]/2, r'$\mu_l$', #transform=axes[i].get_yaxis_transform(),
-        va='top', ha='right', fontsize=8)
+        #right_axes[i].axvline(x=phi/2, color='black', linestyle='--', linewidth=1,zorder=10)
+        #axes[i].text(phi/2+0.2, ylim[1]/2, r'$\mu_r$', #transform=axes[i].get_yaxis_transform(),
+        #va='top', ha='left', fontsize=8)
+        #right_axes[i].axvline(x=-phi/2, color='black', linestyle='--', linewidth=1,zorder=10)
+        #axes[i].text(-phi/2-0.2, ylim[1]/2, r'$\mu_l$', #transform=axes[i].get_yaxis_transform(),
+        #va='top', ha='right', fontsize=8)
 
-        text=f'U={U}\nV={V}'
+        #text=f'U={U}\nV={V}'
         #text=rf'$\phi={phi}$'
         #axes[i].text(0.05, 0.85, text, transform=axes[i].transAxes,
         #    fontsize=10, bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
@@ -1100,16 +1125,83 @@ def plot(filepaths,functions):
 
     for i, ax in enumerate(right_axes):
         if i != len(right_axes) - 1:
-            ax.set_yticklabels([])
-    plt.subplots_adjust(wspace=0.2) 
+            print('setting ticks')
+            #print(i)
+            #ax.set_yticklabels([])
+    #right_axes[0].set_yticklabels([])
+    right_axes[0].tick_params(axis='y', labelright=False)
+    plt.subplots_adjust(wspace=0.1) 
 
-    plt.tight_layout
+    plt.tight_layout()
+    plt.show()
+
+def plotJ_om(filepaths):
+    t=1/np.sqrt(2)
+    #fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(9, 3), sharey=True)
+    
+    colors=['navy','#984ea3','#a65628']
+    colors_F = ['#a6cee3','#f781bf', '#c97b4a']
+
+    for i,filepath in enumerate(filepaths):
+        with open(filepath, 'r') as file:
+            data = json.load(file)
+        fit_params=data['input']['fit_parameters']
+        phi=fit_params['phi']
+
+
+        parameters=data['input']['parameters']
+        T_fict=fit_params['T_fict']
+        D=fit_params['D']
+        T=fit_params['T']
+        muL=phi/2
+        muR=-muL
+        Gamma=np.pi*t**2/D
+        V=parameters['drive']
+        Om=parameters['frequency']
+        U=parameters['interaction']
+
+        print('wigner')
+        omegas_wig,Gr_wig,Gk_wig=GphysFromFile(filepath)
+        print('floq')
+        #omegas_floq,Gr_floq,Gk_floq=GphysFromFile(filepath,rep='floq')
+
+        start=np.where(omegas_wig < -10)[0][-1]
+        end=np.where(omegas_wig > 10)[0][0]
+        omegas=omegas_wig[start:end]
+        gamma=- (1 - fermi(omegas, -D, 1/T_fict)) * fermi(omegas, D, 1/T_fict)*Gamma
+        f=fermi(omegas, muR, 1/T)-fermi(omegas, muL, 1/T)
+        A=-1/np.pi*np.imag(Gr_wig)[start:end]
+
+        axes[i].plot(omegas,A,color=colors[i],label='DOS')
+        axes[i].plot(omegas,gamma*f,color=colors[i],linestyle='dashed',label=r'$n_\text{bath}(\omega)$')
+        axes[i].fill_between(omegas,gamma*f*A, 0, alpha=0.3,color=colors[i],label=r'$j(\omega)$')
+        print(np.trapezoid(gamma*f*A,omegas))
+        axes[i].legend(fontsize=8)
+
+
+        ylim = axes[i].get_ylim()
+        xlim = axes[i].get_xlim()
+        axes[i].axvline(x=phi/2, color='black', linestyle='--', linewidth=1,zorder=10)
+        axes[i].text(phi/2+0.2, ylim[1]/2, r'$\mu_r$', #transform=axes[i].get_yaxis_transform(),
+        va='top', ha='left', fontsize=8)
+        axes[i].axvline(x=-phi/2, color='black', linestyle='--', linewidth=1,zorder=10)
+        axes[i].text(-phi/2-0.2, ylim[1]/2, r'$\mu_l$', #transform=axes[i].get_yaxis_transform(),
+        va='top', ha='right', fontsize=8)
+        axes[i].set_xlabel(r'$\omega/t^\prime$')
+
+        axes[i].text(xlim[0]+1, ylim[1]-0.1, fr'$V={V}$', #transform=axes[i].get_yaxis_transform(),
+        va='top', ha='left', fontsize=8,bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
+        
+    axes[0].set_ylabel(r'$A(\omega)/t^{\prime-1}$')
+    plt.tight_layout()
     plt.show()
 
 def plotCurrent(dirpaths,U0=False,fig=None,ax=None):
     if fig==None:
         fig, ax = plt.subplots(1, 1, figsize=(3.5, 3.5))
-    colors=['navy','#984ea3','#a65628']
+    colors=['navy','#984ea3','#a65628','k']
+    alpha=1
     for i,dirpath in enumerate(dirpaths):
         print(i)
         dirname = os.path.basename(dirpath)
@@ -1149,11 +1241,12 @@ def plotCurrent(dirpaths,U0=False,fig=None,ax=None):
 
         #if i==0:
         #    plt.plot(phis/2,currents_phys,color=colors[i],label=fr'$V=1$')
-        
+        if i==3:
+            alpha=0.5
         if U0:
-            ax.plot(phis/2,currents_phys,color=colors[i],label=fr'$V={V}$')
+            ax.plot(phis/2,currents_phys,color=colors[i],label=fr'$V={V}$',alpha=alpha)
         else:
-            ax.plot(phis/2,currents_solver_phys,color=colors[i],label=fr'$V={V}$')
+            ax.plot(phis/2,currents_solver_phys,color=colors[i],label=fr'$V={V}$',alpha=alpha)
     if U0:
         ax.text(0.05, 0.9, fr'$U=0$', transform=ax.transAxes,
             fontsize=10, bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
@@ -1173,21 +1266,25 @@ def plotCurrent(dirpaths,U0=False,fig=None,ax=None):
 #deltaTest()
 #filepath='current_results/V3Om3U0/phi0-20250409-124047.json'
 #GphysFromFile(filepath)
+#createFit("Fit_constantDOS_Gamma.json",sites=5)
 
 solver_params={'dt':0.05,'eps':1e-8,'max_iter': 100,
                 'av_periods':4,'tf':1e1,'t_step':1e1,'av_Tau':5,'writeFile':True,
                 'dirName':'current_results5sites'}
 
-#createFit('Fit_constantDOS.json',plot=True,change_phis=[14],phis=[14],T=1/10,sites=5)
+phis_check=[14.5]
+#createFit('Fit_constantDOS_noWeights.json',plot=True,change_phis=[],phis=[3],T=1/10,sites=5,t=1/np.sqrt(2))
 #phis_check=np.arange(0,15,0.5)
-#checkFit('Fit_constantDOS.json',phis_check,3,3,plot=False)
+#phis_check=[3]
+#checkFit('Fit_constantDOS.json',phis_check,6,3,plot=True)
 #phis=[0]
-phis=np.arange(0,13,0.5)
+
+phis=np.arange(9.5,13,0.5)
 filepath='Fit_constantDOS.json'
 V=0
 Om=15
 U=6
-runSolverWithFitFile(phis,V,Om,U,filepath,solver_params)
+#runSolverWithFitFile(phis,V,Om,U,filepath,solver_params)
 
 #u0
 file1='current_results5sites/V1Om3U0/phi0-20250514-102059.json'
@@ -1201,27 +1298,47 @@ file3='current_results5sites/V6Om3U0/phi0-20250514-084826.json'
 #file1='current_results5sites/V1Om3U6/phi0-20250514-113453.json'
 #file2='current_results5sites/V3Om3U6/phi0-20250511-210219.json'
 #file3='current_results5sites/V6Om3U6/phi0-20250512-142907.json'
+plotDOS_phi([file1,file2],["A","N"])
+a
+#file1='current_results5sites/V0Om3U6/phi0-20250520-161546.json'
+#file2='current_results5sites/V0Om3U6/phi6-20250521-104833.json'
+#file2='current_results5sites/V3Om3U3/phi6-20250511-012007.json'
 
-file1='current_results5sites/V12Om3U3/phi0-20250521-115857.json'
-file2='current_results5sites/V12Om3U3/phi6-20250521-112358.json'
-filepaths=[file1,file2]
-#plot(filepaths,['F','A','N'])
+#file1='current_results5sites/V3Om3U6/phi0-20250511-210219.json'
+#file2='current_results5sites/V3Om3U6/phi12-20250511-163413.json'
 
+#file1='current_results5sites/V0Om3U6/phi6-20250521-104833.json'
+
+#file1='current_results5sites/V1Om3U6/phi6-20250515-133805.json'
+#file2='current_results5sites/V3Om3U6/phi6-20250511-113146.json'
+#file3='current_results5sites/V6Om3U6/phi6-20250512-195337.json'
+
+#file1='current_results5sites/V1Om3U6/phi12-20250516-021811.json'
+#file2='current_results5sites/V3Om3U6/phi12-20250511-163413.json'
+#file3='current_results5sites/V6Om3U6/phi12-20250516-181121.json'
+#file2='current_results5sites/V3Om3U3/phi6-20250511-012007.json'
+#file3='current_results5sites/V3Om3U6/phi6-20250511-113146.json'
+filepaths=[file1,file2,file3]
+plotJ_om(filepaths)
+a
 
 #phis=[0]
-#filepath=calcCurrentsFromFolder('current_results5sites/V6Om3U6',phis)
+phis=np.arange(0,13,0.5)
+filepath=calcCurrentsFromFolder('current_results5sites/V0Om15U6',phis)
+dirV0U3='current_results5sites/V0Om10U3'
 dirV1U3='current_results5sites/V1Om3U3'
 dirV3U3='current_results5sites/V3Om3U3'
 dirV6U3='current_results5sites/V6Om3U3'
 
+dirV0U6='current_results5sites/V0Om15U6'
 dirV1U6='current_results5sites/V1Om3U6'
 dirV3U6='current_results5sites/V3Om3U6'
 dirV6U6='current_results5sites/V6Om3U6'
 
-fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), sharey=True)
-plotCurrent([dirV1U3,dirV3U3,dirV6U3],True,fig,axes[0])
-plotCurrent([dirV1U3,dirV3U3,dirV6U3],False,fig,axes[1])
-plotCurrent([dirV1U6,dirV3U6,dirV6U6],False,fig,axes[2])
+fig, axes = plt.subplots(1, 3, figsize=(10, 3), sharey=True)
+plotCurrent([dirV1U3,dirV3U3,dirV6U3,dirV0U3],True,fig,axes[0])
+plotCurrent([dirV1U3,dirV3U3,dirV6U3,dirV0U3],False,fig,axes[1])
+plotCurrent([dirV1U6,dirV3U6,dirV6U6,dirV0U6],False,fig,axes[2])
 plt.tight_layout
 plt.show()
 

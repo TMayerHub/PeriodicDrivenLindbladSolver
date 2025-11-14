@@ -52,7 +52,7 @@ Om=1
 V=1
 eps=0
 Gamma=0.1
-omegas=np.linspace(-2.5,2.5,500)
+omegas=np.linspace(-10,10,500)
 
 Gr = np.zeros(len(omegas), dtype=complex)+0j
 
@@ -83,7 +83,7 @@ for n in range(-4, 5):
 plt.xlabel('Frequency (ω)')
 plt.ylabel('Imaginary part of Gr')
 plt.legend()
-plt.show(block=False)
+#plt.show(block=False)
 
 # Create figure and subplots
 colors = [
@@ -137,10 +137,63 @@ axs[1, 0].legend(fontsize=6, loc='lower right', ncol=2)
 
 # Adjust layout
 plt.tight_layout()
-plt.show(block=False)
+#plt.show(block=False)
+Gamma=0.1
+l_max=10
+i_max=10
+Delta=0
+Om=3
+Vs=[1,3,6]
+n=0
+m=0
+Gk=0
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), sharey=False)
+colors=['navy','#984ea3','#a65628']
+for c,V in enumerate(Vs):
+    Gr = np.zeros(len(omegas), dtype=complex)
+    for i, om in enumerate(omegas):
+        temp_sum = 0  
+        for l in range(-10, 11, 1):
+            temp_sum += 1/(om + l*Om + eps + 1j*Gamma) * jv(-l, V/Om) * jv(-l, V/Om)
+        Gr[i] += temp_sum
+    
+    for i in range(-i_max, i_max+1, 1):
+        Gk_i=np.zeros(len(omegas), dtype=complex)
+        for k, om in enumerate(omegas):
+            temp_sum=0
+            temp_sum1 = 0  
+            for l in range(-l_max, l_max+1, 1):
+                temp_sum1 += 1/(om + l*Om + eps + 1j*Gamma) * jv(m-l, V/Om) * jv(i-l, V/Om)
+            temp_sum2 = 0  
+            for l in range(-l_max, l_max+1, 1):
+                temp_sum2 += 1/(om + l*Om + eps + 1j*Gamma) * jv(n-l, V/Om) * jv(i-l, V/Om)
+            temp_sum+=temp_sum1*np.conj(temp_sum2)
+            #plt.plot(-2*1j*Delta*temp_sum.real)
+            Gk_i[k] += 2*1j*Delta*temp_sum
+        Gk+=Gk_i
+    A=-Gr.imag/np.pi
+    if i==2:
+        axes[c].plot(omegas,A,label=r'DOS',color=colors[c], linewidth=1)
+    else:
+        axes[c].plot(omegas,A,color=colors[c], linewidth=1,label=r'DOS')
+    
+    N2=(1/2*Gk-1j*Gr.imag)/(2*np.pi)
+    N2_sum=np.trapezoid(N2,omegas)
+    print(N2_sum)
+    axes[c].legend(fontsize=8)
+    #if i==2:
+        #axes[c].fill_between(omegas,N2.imag, 0, alpha=0.3,color=colors[c],label=r'filling')
+    #else:
+        #axes[c].fill_between(omegas,N2.imag, 0, alpha=0.3,color=colors[c],label=r'filling')
+    axes[c].set_xlabel(r'$\omega$')
+    text=f'U={0}\nV={V}'
+    axes[c].text(0.05, 0.85, text, transform=axes[c].transAxes,
+    fontsize=10, bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
+axes[0].set_ylabel(r'$A(\omega)$')
+plt.tight_layout()
+plt.show()
 
 #Keldysh component G00
-
 l_max=5
 i_max=4
 Delta=-0.02
@@ -178,7 +231,7 @@ axs[1].legend(fontsize=6,loc='lower right')
 axs[0].grid()
 axs[1].grid()
 plt.tight_layout()
-plt.show(block=False)
+plt.show()
 
 def calcKeldysh_a(omegas,l_max,Delta,Gamma,V,Om,m,n):
     Gk=0

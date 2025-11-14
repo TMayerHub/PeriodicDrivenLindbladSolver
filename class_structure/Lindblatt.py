@@ -200,12 +200,12 @@ class createLindblad:
         
         
         #Hamiltonian acting on augmented Fockspace  
-        hop_left_up_a = [[-1*self.T[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
-        hop_left_down_a = [[-1*self.T[int((i)/2)],i,(i+2)] for i in range(2*L,4*L-2,2)]
+        hop_left_up_a = [[-1*T_c[int((i)/2)],i,(i+2)] for i in range(0,2*L-2,2)] # hopping to the right
+        hop_left_down_a = [[-1*T_c[int((i)/2)],i,(i+2)] for i in range(2*L,4*L-2,2)]
         hop_left_a=hop_left_up_a+hop_left_down_a
     
-        hop_right_up_a = [[-1*T_c[int((i)/2)],(i+2),i] for i in range(0,2*L-2,2)] # hopping to the left
-        hop_right_down_a = [[-1*T_c[int((i)/2)],(i+2),i] for i in range(2*L,4*L-2,2)]
+        hop_right_up_a = [[-1*self.T[int((i)/2)],(i+2),i] for i in range(0,2*L-2,2)] # hopping to the left
+        hop_right_down_a = [[-1*self.T[int((i)/2)],(i+2),i] for i in range(2*L,4*L-2,2)]
         hop_right_a=hop_right_up_a+hop_right_down_a
     
         
