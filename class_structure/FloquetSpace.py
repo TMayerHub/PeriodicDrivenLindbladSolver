@@ -17,6 +17,14 @@ import os
 #print(len(os.sched_getaffinity(0)))
 
 def loadTimeJson(filePath):
+    '''
+    function to load a json file created by the solver
+    Parameter:
+        filePath (string): path to the json File
+    Returns:
+        dic: dictionary in the input key
+        dic: dictionary in the output key
+    '''
     with open(filePath, "r") as f:
         loaded_data = json.load(f)
         _input = loaded_data['input']
@@ -28,6 +36,17 @@ def loadTimeJson(filePath):
         return _input,_output
 
 def plots(_output,omegas,wigner_dic):
+    '''
+        A quick plottin function
+        Plots the zero wigner mode of the central sit of the 
+            lesser, greater, keldysh and retarded greensfunction
+            as well as the current (here this means transition amplitude)
+        Parameters:
+            _output: output dictionary from the solver file
+            omegas: frequenices the GF are calcuated at
+            wigner_dic: wigner dictionary, with all the necessary keys (see below)
+        
+    '''
     n=_output['results'][0]['a+_a'][:,0]
     t=_output['t']
     print(len(t))
@@ -108,6 +127,18 @@ def plots(_output,omegas,wigner_dic):
     plt.plot(omegas[start:end],F[start:end])
 
 def calculateWigner_t(_input,ex_val,mode,Tau,t):
+    '''
+        calculating the integral over t (absolute time) as a first step for the Wigner transform
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            ex_val (np.array): 2d array of the two time expectation value, that should be transformed
+                wit t on axis 0 and tau on axis 1
+            mode (int): Wigner mode to calculate
+            Tau (np.array): relative time the expectation value was calculated at
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+        Returns:
+            np.array the integral over t for the wigner transform
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         period=1
@@ -120,7 +151,27 @@ def calculateWigner_t(_input,ex_val,mode,Tau,t):
     
  
 def RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
-    
+    '''
+        calculating the retarded Wigner transform for modes 0 to mode_max
+            Gr_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            mode_max (int): maximum Wigner mode to calculate
+            site (list): site, the Greens function is calculated for
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 2d array, retarded wigner Greens function, with modes going from 
+                -mode_max to +mode_max
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1    
@@ -154,6 +205,25 @@ def RetartedWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
     return np.array(wigner_retarted)
 
 def LesserWigner(_input,mode_max,site,t,Tau_total,adag_a):
+    '''
+        calculating the lesser Wigner transform for modes -mode_max to mode_max
+            Gl_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            mode_max (int): maximum Wigner mode to calculate
+            site (list): site, the Greens function is calculated for
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+                
+        Returns:
+            np.array 2d array, lesser wigner Greens function, with modes going from 
+                -mode_max to +mode_max
+    '''
+
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1    
@@ -176,6 +246,24 @@ def LesserWigner(_input,mode_max,site,t,Tau_total,adag_a):
     return np.array(wigner_lesser)
 
 def GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag):
+    '''
+        calculating the greater Wigner transform for modes -mode_max to mode_max
+            Gg_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            mode_max (int): maximum Wigner mode to calculate
+            site (list): site, the Greens function is calculated for
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 2d array, greater wigner Greens function, with modes going from 
+                -mode_max to +mode_max
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1    
@@ -197,6 +285,27 @@ def GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag):
 
 
 def KeldyshWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
+    '''
+        calculating the keldysh Wigner transform for modes -mode_max to mode_max
+            Gk_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            mode_max (int): maximum Wigner mode to calculate
+            site (list): site, the Greens function is calculated for
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 2d array, keldysh wigner Greens function, with modes going from 
+                -mode_max to +mode_max
+    '''
     wigner_lesser=LesserWigner(_input,mode_max,site,t,Tau_total,adag_a)
     wigner_greater=GreaterWigner(_input,mode_max,site,t,Tau_total,a_adag)
     return wigner_lesser+wigner_greater
@@ -204,6 +313,27 @@ def KeldyshWigner(_input,mode_max,site,t,Tau_total,adag_a,a_adag):
     
     
 def RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
+    '''
+        calculating the retarded Floquet matrix, with the size depending on modes
+            Gr_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            modes (list): two values [m,n], giving the size of the resulting matrix
+                (2m+1)x(2n+1)
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 3d array, retarded floquet matrix of size (2m+1)x(2n+1), with the first 
+                dimension corresponding to the differnt frequencies
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1
@@ -251,6 +381,27 @@ def RetardedFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
     return floquet_retarted
 
 def LesserFloquet(_input,modes,t,Tau_total,adag_a):
+    '''
+        calculating the lesser Floquet matrix, with the size depending on modes
+            Gl_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            modes (list): two values [m,n], giving the size of the resulting matrix
+                (2m+1)x(2n+1)
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 3d array, lesser floquet matrix of size (2m+1)x(2n+1), with the first 
+                dimension corresponding to the differnt frequencies
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1    
@@ -294,6 +445,27 @@ def LesserFloquet(_input,modes,t,Tau_total,adag_a):
     return np.array(floquet_lesser)
 
 def GreaterFloquet(_input,modes,t,Tau_total,a_adag):
+    '''
+        calculating the greater Floquet matrix, with the size depending on modes
+            Gg_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            modes (list): two values [m,n], giving the size of the resulting matrix
+                (2m+1)x(2n+1)
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 3d array, greater floquet matrix of size (2m+1)x(2n+1), with the first 
+                dimension corresponding to the differnt frequencies
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1    
@@ -335,6 +507,27 @@ def GreaterFloquet(_input,modes,t,Tau_total,a_adag):
     return np.array(floquet_greater)
             
 def KeldyshFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
+    '''
+        calculating the keldysh Floquet matrix, with the size depending on modes
+            Gk_ij
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            modes (list): two values [m,n], giving the size of the resulting matrix
+                (2m+1)x(2n+1)
+            Tau_total (np.array): relative time the expectation value was calculated at 
+                (including possible negative times)
+            t (np.array): absolute time the expectation value was calculated at (covers one period)
+            adag_a (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 adag(i)a(j) and index 1 adag(j)a(i)
+            a_adag (np.array): 3d with two 2d arrays of the two time expectation value, 
+                with t on axis 0 and tau on axis 1
+                that should be transformed, with index 0 a(i)adag(j) and index 1 a(j)adag(i)
+                
+        Returns:
+            np.array 3d array, keldysh floquet matrix of size (2m+1)x(2n+1), with the first 
+                dimension corresponding to the differnt frequencies
+    '''
     Om=_input['parameters']['frequency']
     if Om==0:
         Om=1   
@@ -359,6 +552,18 @@ def KeldyshFloquet(_input,modes,t,Tau_total,adag_a,a_adag):
 
 
 def calculateCurrent(_input,_output,sites): 
+    '''
+        calculates the 'current' in the sense of transition amplitude between 
+        neighborint sites.
+        Parameters:
+            _input (dict): input dictionary from the solver file
+            _output (dict): output dictionary from the solver file
+            sites (list): list of strings, stating which sites should be calculated 
+                each entry is structured as 'i j'
+        returns:
+            the list of sites
+            an array, containing the current for each site in t and Tau
+    '''
     current=[]
     for site in sites:
         if site=='-1 -1' or site=='1 1':
@@ -392,6 +597,20 @@ def calculateCurrent(_input,_output,sites):
     
     
 def calculateWigner(_output,mode_max,components,sites):
+    '''
+        calculates the Wigner modes of the specified components and sites up to a given mode
+        Parameters:
+            _output (dict): output dictionary from a solver file (must contain all sites requested)
+            mode_max (int): maximum wigner mode to be calculated
+            components (list): list of strings, statting which components 
+                (retarded, keldysh, lesser, greater) should be calculated
+            sites (list): list of strings, stating which sites should be calculated 
+                each entry is structured as 'i j'
+        returns
+            the list of sites
+            the frequencies the GFs where calculated at
+            A dictionary containing all the GFs of structure sites => component => list of wigner modes
+    '''
     wigner_dic={}
     for site in sites:
         wigner_dic[site]={}
@@ -436,6 +655,16 @@ def calculateWigner(_output,mode_max,components,sites):
 
                
 def calcGreen(_input,component):
+    '''
+        calculating the non-interacting, non-driven Green's function of the central site
+        Parameters:
+            _input (dict): input dictionary from the solver file (contains all system parameters)
+            components (list): list of strings containing all the GF components to be calculated
+        Returns:
+            frequencies where the GF was calculated
+            the retareded GF
+            the keldysh GF
+    '''
     eps=_input['parameters']['epsilon']
     #gamma1=np.diag(_input['parameters']['coupling_empty'],0)
     #gamma2=np.diag(_input['parameters']['coupling_full'],0)
@@ -462,7 +691,21 @@ def calcGreen(_input,component):
     return omegas,Gr,Gk
 
 def calculateWignerFromFile(file,mode_max,components,sites):
-    
+    '''
+        calculates the Wigner modes of the specified components and sites up to a given mode 
+        starting form a solver file
+        Parameters:
+            file (string): path to a solver file (must contain all sites requested)
+            mode_max (int): maximum wigner mode to be calculated
+            components (list): list of strings, statting which components 
+                (retarded, keldysh, lesser, greater) should be calculated
+            sites (list): list of strings, stating which sites should be calculated 
+                each entry is structured as 'i j'
+        returns
+            the list of sites
+            the frequencies the GFs where calculated at
+            A dictionary containing all the GFs of structure sites => component => list of wigner modes
+    '''
     _input,_output=loadTimeJson(file)
     #print(_input)
     wigner_dic={}
@@ -504,7 +747,23 @@ def calculateWignerFromFile(file,mode_max,components,sites):
     return sites,omegas,wigner_dic
 
 def calculateFloquetFromFile(file,modes,components,sites):
-    
+    '''
+        calculates the Floquet matrix of the specified components and sites up to a given mode 
+        starting form a solver file
+        Parameters:
+            file (string): path to a solver file (must contain all sites requested)
+            modes (list): two values [m,n], giving the size of the resulting matrix
+                (2m+1)x(2n+1)
+            components (list): list of strings, statting which components 
+                (retarded, keldysh, lesser, greater) should be calculated
+            sites (list): list of strings, stating which sites should be calculated 
+                each entry is structured as 'i j'
+        returns
+            the list of sites
+            the frequencies the GFs where calculated at
+            A dictionary containing all the GFs of structure sites => component => 
+                array of floquet matrices at different frequences
+    '''
     _input,_output=loadTimeJson(file)
     #print(_input)
     Om=_input['parameters']['frequency']
@@ -558,6 +817,17 @@ def calculateFloquetFromFile(file,modes,components,sites):
         return sites,omegas_center,floquet_dic
 
 def calculateCurrentFromFile(file,sites):
+    '''
+        calculates the 'current' in the sense of transition amplitude between 
+        neighborint sites, averaged over a period.
+        Parameters:
+            file (string): path to a solver file (must contain all sites)
+            sites (list): list of strings, stating which sites should be calculated 
+                each entry is structured as 'i j'
+        returns:
+            the list of sites
+            an array, containing the current integrated over t (still depends on Tau)
+    '''
     _input,_output=loadTimeJson(file)
     Om=_input['parameters']['frequency']
     if Om==0:
@@ -574,6 +844,17 @@ def calculateCurrentFromFile(file,sites):
     return sites,current
 
 def calculateCurrentFromKeldysh(file,sites):
+    '''
+        calculates the total current (transmission between neighbouring sites)
+        usind the zero wigner keldysh Green's function
+        Parameters:
+            file (string): path to a solver file (must contain all sites)
+            sites (list): list of strings, stating which sites should be calculated 
+                each entry is structured as 'i j'
+        returns:
+            the list of sites
+            an array, containing the current integrated over omega
+    '''
     _input,_output=loadTimeJson(file)
     #print(_input)
     calculateWignerFromFile(file,0,['keldysh'],sites)
@@ -604,6 +885,8 @@ def calculateCurrentFromKeldysh(file,sites):
         print('current: ',current)
         return sites, current
 
+####################################################################################################
+#example on how to use the functions
 # file='class_structure/results/U0V0Om0_20250408-134137.json'
 # _input,_output=loadTimeJson(file)
 

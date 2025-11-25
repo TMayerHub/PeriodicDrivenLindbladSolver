@@ -5,7 +5,10 @@ Created on Mon May 22 14:59:40 2023
 
 @author: theresa
 """
-
+##########################################################
+#An early version of a quick implimentation, the periodicity is not implimented correctly here yet
+#However I leave the file in here, since it doesn't rely on other programms in this folder 
+# and might therefore help with the understanding of the structure
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import spinful_fermion_basis_1d
 from quspin.basis import spinful_fermion_basis_general

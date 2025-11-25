@@ -25,6 +25,22 @@ warnings.formatwarning = custom_formatwarning
 
 class createLindblad:
     def __init__(self,basis,parameters,spin_sym=False):
+        '''
+            basis (augmented_basis): basis object, the Lindbladoperator should be defined on
+            parameters (dict): with parameters of the system, must have the following keys
+                length (int): number of sites in the system 
+                epsilon (float, np.array): float, L or 2L np.array containing the onsite energy
+                T (float, np.array): float, L or 2L np.array containing the nn-hopping
+                U (float): interaction of the central site
+                V (float): strength of the coupling to the driving
+                Om (float): frequency of the driving
+                Gamma1 (float,np.array): float, LxL, or 2Lx2L np.array giving the coupling 
+                    to the empty bath
+                Gamma2 (float,np.array): float, LxL, or 2Lx2L np.array giving the coupling 
+                    to the full bath
+                spin_sym: Wether the system should be treated spin symmetric
+
+        '''
         self.parameters = parameters
         self.basis = basis
         
@@ -73,6 +89,9 @@ class createLindblad:
         
         
     def check_parameters(self):
+        '''
+            checking if all entries in the parameter dictionary have the expected length
+        '''
         if not(self.L == self.basis.N/4):
             raise ValueError(f'the basis passed has {self.basis.N/4} not {self.L} sites')
         
@@ -161,6 +180,9 @@ class createLindblad:
         
     
     def displayParameters(self):
+        '''
+            simple function displaying all the parameters
+        '''
         print('parameters')
         print('sites: ',self.L)
         print()
@@ -180,6 +202,13 @@ class createLindblad:
         return np.cos(Om*t)
     
     def defineH_super(self):
+        '''
+            defining the Hamiltoninapart of the superfermion Lindbladoperator 
+            according to the Lindbladequation and quspin functionality, from 
+            the system parameters passed to the class
+            Returns:
+                quspin.operator 
+        '''
         L=self.L
         self.T=self.T[:-1]
         T_c=np.conjugate(self.T)
@@ -245,6 +274,13 @@ class createLindblad:
     
     #removes particels from the system
     def define_Dissipators1(self):
+        '''
+            defining the Dissipator1 (removal) of the superfermion Lindbladoperator 
+            according to the Lindbladequation and quspin functionality, from 
+            the system parameters passed to the class
+            Returns:
+                quspin.operator 
+        '''
         L=self.L
         
         #mixed Fock and augmented
@@ -282,6 +318,13 @@ class createLindblad:
     
     #add particels to the system
     def define_Dissipators2(self):
+        '''
+            defining the Dissipator2 (adding) of the superfermion Lindbladoperator 
+            according to the Lindbladequation and quspin functionality, from 
+            the system parameters passed to the class
+            Returns:
+                quspin.operator 
+        '''
         L = self.L
         #mixed
         part1 = [[-2j*self.Gamma2[int(i/2),int((j-1)/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
@@ -301,6 +344,13 @@ class createLindblad:
         return hamiltonian(static,dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
     
     def define_Dissipators(self):
+        '''
+            defining the total Dissipator of the superfermion Lindbladoperator 
+            according to the Lindbladequation and quspin functionality, from 
+            the system parameters passed to the class
+            Returns:
+                quspin.operator 
+        '''
         L = self.L
         #mixed
         part1_empty = [[-2j*self.Gamma1[int(i/2),int((j-1)/2)],(j),(i)] for i in range(0,4*L,2) for j in range(1,4*L,2)]
@@ -335,7 +385,11 @@ class createLindblad:
         return hamiltonian(static,dynamic,dtype=np.complex128,basis=self.basis,check_herm=False,check_pcon=False,check_symm=False)
     
     def get_staticLindblad(self):
-
+        '''
+            calculate the complete Lindblad operator
+            Returns:
+                quspin.operator
+        '''
         H_super=self.defineH_super(self)
         #D1=self.define_Dissipators1(self)
         #D2=self.define_Dissipators2(self)
@@ -345,6 +399,11 @@ class createLindblad:
         return H_super+1j*(D)
     
     def get_dynamicLindblad(self):
+        '''
+            calculate the complete Lindblad operator
+            Returns:
+                quspin.operator
+        '''
         H_super=self.defineH_super()
         #D1=self.define_Dissipators1()
         #D2=self.define_Dissipators2()
@@ -355,6 +414,10 @@ class createLindblad:
         return H_super+1j*(D)
     
     def exact_Diagonalization(self):
+        '''
+            diagonalizes the Lindblad matrix, returns the left and right eigenvector 
+            at lowest eigenvalues, can be used to check the leftVaccuum
+        '''
         L_static_csr=self.operator.as_sparse_format()
         w,vl,vr=scipy.linalg.eig(L_static_csr.toarray(),left=True,right=True)
         w_min=np.argmin(abs(w))
@@ -370,6 +433,10 @@ class createLindblad:
         return vl0,rho_inf
 
     def lowestEV(self):
+        '''
+            calculates the lowest eigenvector
+            this can be used to check the time evolution
+        '''
         w,rho_inf=self.operator.eigsh(k=1,sigma=0)
         print('w rho inf: ', w)
         #print(leftVacuum.shape,rho_inf.shape)

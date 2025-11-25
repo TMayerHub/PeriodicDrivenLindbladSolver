@@ -56,6 +56,18 @@ def process_j(j,t,Tau,rhos_a,rhos_adag,plus_lV,minus_lV):
 
 class calculateGreensFunction:
     def __init__(self,parameters,sites,spin):
+        '''
+            Parameters:
+                parameters: a dictionary with the system parameters, used to be passed 
+                    to the Lindblad class (check the Lindblad initialization for the structure)
+                sites (list): 2d list, where each entry contains two values, indicating which 
+                    sites should be used for the two time correlations function 
+                    (for the central sitethis will be [[0,0]])
+                spin (string): for which spin to calculate for ('up','down','updown')
+            For a spinsymmetric basis, it is still often quicker to not use the spinsymmetric basis, 
+            but only the 'up' spin, since this reduces the number of relevant states similarly and 
+            the computation turns out to be quicker
+        '''
         self.parameters=parameters
         self.spin_sym=parameters['spin_symmetric']
         self.sites=sites
@@ -87,6 +99,9 @@ class calculateGreensFunction:
         
     
     def findCenter(self):
+        '''
+            function to find the index of the central site
+        '''
         if self.L%2:
             return self.L
         #even
@@ -95,6 +110,9 @@ class calculateGreensFunction:
         
     @staticmethod
     def get_extendedIndices(basis,extended_basis):
+        '''
+            static method, to find indices for basis transform
+        '''
         #find index location of first occurrence of each value of interest
         #sorter = np.argsort(x)
         #sorter[np.searchsorted(x, vals, sorter=sorter)]
@@ -105,7 +123,16 @@ class calculateGreensFunction:
     
     @staticmethod
     def to_extended_vector(state_vector,basis,extended_basis):
-    
+        '''
+        transforming a vector from the smaller basis set, to the extended basis
+        Parameters:
+            state_vector (np.array): containing the state vector in the basis
+            basis (augmented_basis): old, smaller basis
+            extended_basis (augmented_basis): new basis, larger, must contain all basis states that 
+                basis has
+        Returns:
+                    np.array: state vector, in extended basis
+        '''
         v_shape=state_vector.shape
         if len(v_shape)==2:
             rows = v_shape[0]
@@ -128,6 +155,16 @@ class calculateGreensFunction:
         
     @staticmethod
     def to_reduced_vector(state_vector,basis,extended_basis):
+        '''
+            transforming a vector from the larger extended basis set, to the smaller basis
+            Parameters:
+                state_vector (np.array): containing the state vector in the basis
+                basis (augmented_basis): new, smaller basis
+                extended_basis (augmented_basis): old basis, larger, must contain all basis states that 
+                basis has
+            Returns:
+                np.array: state vector, in basis
+        '''
         #find index location of first occurrence of each value of interest
         #sorter = np.argsort(x)
         #sorter[np.searchsorted(x, vals, sorter=sorter)]
@@ -151,6 +188,10 @@ class calculateGreensFunction:
             return reduced_vector
         
     def _basisM(self):
+        '''
+            returns the basis, necessary when the anihilation operator is applied, depending on 
+            for what spin (self.spin) the GF will be calculated
+        '''
         if self.spin == 'updown':
             diff_sector = [2,0,0,2]
             
@@ -163,6 +204,10 @@ class calculateGreensFunction:
         return augmented_basis(self.L,'restricted',diff_sector,spin_sym=self.spin_sym)
     
     def _basisP(self):
+        '''
+            returns the basis, necessary when the creation operator is applied, depending on 
+            for what spin (self.spin) the GF will be calculated
+        '''
         if self.spin == 'updown':
             diff_sector = [1,0,0,1]
             
@@ -176,6 +221,14 @@ class calculateGreensFunction:
         
 
     def action_n(self,state,site):
+        '''
+            calculates the action of the occupation number operator on a state at a specific site
+            Parameters:
+                state (np.array): the state of the system
+                site (int): the site where n acts on (0 is the central site)
+            Returns:
+                np.array the result of the operator acting on the state
+        '''
         index=self.center+2*site
         if self.spin == 'updown':
             n_list=[[1+0j,index],[1+0j,index+2*self.L]]
@@ -199,7 +252,14 @@ class calculateGreensFunction:
         return n_op.dot(state)
     
     def action_a(self,state_vector,site):
-       
+        '''
+        calculates the action of the annihilation operator on a state at a specific site
+        Parameters:
+            state (np.array): the state of the system
+            site (int): the site where a acts on (0 is the central site)
+        Returns:
+            np.array the result of the operator acting on the state
+        '''
         index=self.center+2*site
         if self.spin == 'updown':
             a_list=[[1+0j,index],[1+0j,index+2*self.L]]
@@ -230,6 +290,14 @@ class calculateGreensFunction:
         return a_vector
     
     def action_adag(self,state_vector,site):
+        '''
+        calculates the action of the creation operator on a state at a specific site
+        Parameters:
+            state (np.array): the state of the system
+            site (int): the site where adag acts on (0 is the central site)
+        Returns:
+            np.array the result of the operator acting on the state
+        '''
         
         index=self.center+2*site
         if self.spin == 'updown':
@@ -264,6 +332,11 @@ class calculateGreensFunction:
     
     
     def _leftVacuum(self):
+        '''
+        calculates the left Vaccum according to its definition, in the basis0 sector
+        Returns:
+            np.csr_matrix the left Vaccuum in the basis0
+        '''
         L=self.L
         
         states=self.basis0.states
@@ -321,6 +394,13 @@ class calculateGreensFunction:
         return scipy.sparse.csr_array(mlV)
     
     def plot_n(self,site,tf,dt=0.1):
+        '''
+        plots expectation value of n over time
+        Parameters: 
+            site (int): site where the operator acts on
+            tf (float): time to which to evolve
+            dt (float): time step
+        '''
         basis0=augmented_basis(self.L,'restricted',[0,0],spin_sym=self.spin_sym)
 
         Lindblad0=createLindblad(basis0,self.parameters,spin_sym=self.spin_sym)
@@ -365,13 +445,29 @@ class calculateGreensFunction:
 
     def _GreaterLesser(self,sites,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,
                        tf=5e2,t_step=1e2,av_Tau=10):
-        
-        
+        '''
+            calculating the Greater and Lesser Greensfunction in time (for Tau>0) for 
+            sites
+            Parameters:
+                sites (list): a 1d List with two entries, with the sites where the Green's function 
+                    should be calculated at
+                dt (float): time steps at which to calculate rho
+                eps (float): convergence criterion
+                max_iter(int): maximum number of iterations (one iteration evolves for an interval of t_step)
+                av_periods(int): number of periods to average over when calculating convergence
+                tf (int): evolution until convergence is checked the first time
+                t_step (float): subsequent intervals at which convergence is checked
+                av_Tau (float): intervall in tau over which to average for convergence
+            Returns: 
+                np.array of the absolute time t
+                np.array of the relative time Tau
+                np.array 2d Lesser Greens function depending on (t,Tau) 
+                np.array 2d Greater Greens function depending on (t,Tau) 
+        '''
         if self.parameters['frequency']:
             period=np.pi*2/self.parameters['frequency']
         else:
             period=1
-
 
         if self.rhos_period is None:
             self.rhoOf_t(dt=dt,eps=eps,max_iter=max_iter,av_periods=av_periods,
@@ -431,7 +527,15 @@ class calculateGreensFunction:
     #@memory.cache
     def evolve_single_step(self,rhos_a, rhos_adag, t, Tau, Tau_last,j,plus_lV,minus_lV):
         """
-        Evolve a single step for rhos_a and rhos_adag, then update Lesser, Greater, and the evolution matrices.
+        Function to evolve a single point in t further in Tau. This seperate formulation 
+        is used for parallelization (.evolve is a quspin method that relies on Runge Kutta 
+        for time evolution)
+        Returns:
+            For which point in the period the Gf was calculated
+            The last evolution of a|rho>
+            The last evolution of adag|rho>
+            The lesser green's function at all Tau
+            The greater green's function at all Tau
         """
         # Evolve the system for rhos_a and rhos_adag
         rhoTau_a = LindbladM.operator.evolve(rhos_a[:, j], t[j] +Tau_last , t[j] + Tau)
@@ -462,6 +566,26 @@ class calculateGreensFunction:
 
     def stepsGreaterLesser(self,sites,Tau_last,dt,tf,t_step,av_Tau,rhos_a,rhos_adag,
                            ):
+        '''
+        calculating the lesser and greater green's function for one interval t_step
+        This function involves parallelization, it can lead to an overflow of the memeory
+        and might be adjusted (see the ReadMe file)
+        Parameters:
+            sites (list): a 1d List with two entries, with the sites where the Green's function 
+                should be calculated at
+            Tau_last (float): relative time, where the state vector has already been calculated at
+            dt (float): time steps at which to calculate rho
+            tf (int): evolution until convergence is checked the first time
+            t_step (float): subsequent intervals at which convergence is checked
+            av_Tau (float): intervall in tau over which to average for convergence
+            rhos_a (np.array): The evolution of a|rho> at Tau_last
+            rhos_adag (np.array): The evolution of adag|rho> at Tau_last
+            Returns: 
+                np.array of the absolute time t
+                np.array of the relative time Tau
+                np.array 2d Lesser Greens function depending on (t,Tau) 
+                np.array 2d Greater Greens function depending on (t,Tau)
+        '''
         plus_lV=self.plus_leftVacuum(sites[0])
         minus_lV=self.minus_leftVacuum(sites[0])
         t=self.t_period
@@ -519,7 +643,30 @@ class calculateGreensFunction:
     def _GreaterLesserSites(self,sites,dt=0.05,eps=1e-12,max_iter=1000,
                         av_periods=5,tf=5e2,t_step=1e2,av_Tau=10,writeFile=False,
                         dirName=None,file_name=None,fit_parameters=None):
-        
+        '''
+            main function for calculating the Greater and Lesser Greensfunction in time 
+            (for Tau>0), allows the calculation at various sites and writing the results in 
+            time to a file
+            Parameters:
+                sites (list): a 2d List where each entry is a list with two entries, 
+                with the sites where the Green's function should be calculated at
+                dt (float): time steps at which to calculate rho
+                eps (float): convergence criterion
+                max_iter(int): maximum number of iterations (one iteration evolves for an interval of t_step)
+                av_periods(int): number of periods to average over when calculating convergence
+                tf (int): evolution until convergence is checked the first time
+                t_step (float): subsequent intervals at which convergence is checked
+                av_Tau (float): intervall in tau over which to average for convergence
+                writeFile (boolean): wether to write the results to a file
+                dirName (string): path to the directory where to write the file
+                file_name (string): name of file
+                fit_parameters (dict,None): if they exist, they will be written into the file 
+                with the results for completeness, they are not necessary for the calculation
+            Returns: 
+                np.array of the absolute time t
+                np.array of the relative time Tau
+                dict containing the lesser and greater green's function, for all the sites
+        '''
         res_sites=[]
         t_res=[]
         Tau_res=[]
@@ -610,6 +757,20 @@ class calculateGreensFunction:
             
 
     def rhoOf_t(self,dt=0.05,eps=1e-12,max_iter=1000,av_periods=5,tf=5e2,t_step=1e2,return_all=False):
+        '''
+            evolving the initial state rho, until it reaches a periodice steady state
+            Parameters:
+                dt (float): time steps at which to calculate rho
+                eps (float): convergence criterion
+                max_iter(int): maximum number of iterations (one iteration evolves for an interval of t_step)
+                av_periods(int): number of periods to average over when calculating convergence
+                tf (int): evolution until convergence is checked the first time
+                t_step (float): subsequent intervals at which convergence is checked
+                return_all: wether to return all rhos, or only the last period
+            Returns: 
+                np.array either containing all times or the times of the last period
+                np.array either containing rho at all times or rho at the times of the last period
+        '''
         Lindblad0=createLindblad(self.basis0,self.parameters,spin_sym=self.spin_sym)
         rho0=self.leftVacuum
         rho0T=rho0.T.toarray()
@@ -683,7 +844,8 @@ class calculateGreensFunction:
             return t_total[-2*N_period-1:],rhos_total[:,-2*N_period-1:]
             
 ##############################################################################################################
-#sever functions used for testing concepts during the development process
+#sever functions used for testing concepts during the development process not necessary 
+# for the function of the solver
     def testConvergence_t(self,tf,Tf,dt=0.1):
         
         Lindblad0=createLindblad(self.basis0,self.parameters,spin_sym=self.spin_sym)
@@ -1192,7 +1354,7 @@ parameters_sym = {"length": 3,
               "spin_symmetric":True,
 }
 
-
+#example of running the solver directly
 #start=time.time()
 #GF0_sym=calculateGreensFunction(parameters_sym,0,'updown')
 #Tau,Gr_Tau=GF0_sym._GreaterLesser()   

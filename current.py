@@ -32,6 +32,19 @@ def fermi(w: np.ndarray, mu: float, beta: float) -> np.ndarray:
     return f
 
 def Wigner0ToMatrix(om,omegas,wigner0,Om):
+    """
+    Maps the zero Wigner mode onto a diagonal Matrix
+
+    Parameters:
+        Om (float): Frequency of the system
+        om (float): omega at which the matrix should be given.
+        omegas (np.array): A 1d array of values at which the wigner0 is given.
+        wigner0 (np.array): A 1d array of values of the zero wigner mode.
+
+    Returns:
+        np.array: A 2d array, of the diagonal floquet matrix
+
+    """
     #-1 to ensure that all regions are included completely
     i_om=np.abs(omegas - om).argmin()
     om_num=omegas[i_om]
@@ -46,13 +59,24 @@ def Wigner0ToMatrix(om,omegas,wigner0,Om):
     diag_floq=np.zeros(2*n_max+1,dtype=complex)
     for n in range(-n_max,n_max+1):
         i_om=np.abs(omegas - (om_num+n*Om)).argmin()
-        #print(om_num+n*Om)
-        #print(omegas[i_om])
         diag_floq[n+n_max]=wigner0[i_om]
     
     return om_num,np.diag(diag_floq)
 
 def MatrixToWigner0(om_floq,matrix,Om):
+    """
+    Maps the diagonal of the Floquet matrix to the zero wigner mode
+
+    Parameters:
+        om_floq (np.array): 1d array Frequencies of the floquet matrices given
+        matrix (np.array): 3d array, where each entry is a 2d floquet matrix at a specific frequency
+        omegas (np.array): A 1d array of values at which the wigner0 is given.
+        wigner0 (np.array): A 1d array of values of the zero wigner mode.
+
+    Returns:
+        np.array: A 2d array, of the diagonal floquet matrix
+
+    """
     if Om==0:
         Om=1
     n_max=int((matrix.shape[1]-1)/2)
@@ -73,6 +97,15 @@ def MatrixToWigner0(om_floq,matrix,Om):
     return np.array(omegas_order),np.array(wig)
 
 def InvNonIntImpurity(om,n_max,V,Om,eps):
+    '''
+    Calculates the inverse Floquet matrix of a non-interacting System (of the central site)
+    Parameters:
+        om(float): frequeny to calculate the floquet matrix at
+        n_max (int): dimensions of the floquet matrix
+        V,Om,eps (float): parameters of the central site
+    Returns: 
+        np.array 2d inverse Floquet matrix
+    '''
     Gr_inv_diag=np.zeros(2*n_max+1,dtype=complex)
     for n in range(-n_max,n_max+1):
         Gr_inv_diag[n+n_max]=om+n*Om -eps
@@ -81,13 +114,31 @@ def InvNonIntImpurity(om,n_max,V,Om,eps):
     Gr_inv=np.diag(Gr_inv_diag,k=0)+np.diag(Gr_inv_off,k=1)+np.diag(Gr_inv_off,k=-1)
 
     return Gr_inv
+
 def DelAux(omegas,eps,hopping,gamma1,gamma2):
+    '''
+    Function to recalculate the auxilary hybridization function, given all bath parameters
+        omegas (np.array): frequenies to calculate hybridization function
+        eps,hopping,gamma1/2 (np.array): all are np.arrays describing all parameters of the system
+    Returns: 
+        np.array 1d of the retareded component of the hybritization function
+        np.array 1d of the keldysh component of the hybritization function
+    '''
     omegas,Gr,Gk=calcGreen(eps,hopping,gamma1,gamma2,omegas)
     DeltaR=omegas-1/Gr
     DeltaK=1/Gr*Gk*1/np.conj(Gr)
     return DeltaR,DeltaK
 
 def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_params,t=1/np.sqrt(2)):
+    '''
+    Function to calculate the physical floqeut green's function, starting with the auxiliary result from the solver
+        omegas (np.array): frequenies the auxiliary function was calculated at
+        eps,hopping,gamma1/2 (np.array): all are np.arrays describing all parameters of the system
+        fit_params (dictionary): containing all parameters necessary for the fitting of the hybritization function
+    Returns: 
+        np.array 1d of the retareded component of the physical floqeut green's function
+        np.array 1d of the keldysh component of the physical floqeut green's function
+    '''
     #t=1
     T_fict=fit_params['T_fict']
     D=fit_params['D']
@@ -98,7 +149,7 @@ def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_para
     #D=10
     #T=0.1
     #T_fict=0.5
-    Gamma=np.pi*t**2/(3*D)
+    Gamma=np.pi*t**2/D
     #+1 to make sure Wigner0 to Floq returns the right size
     n_max=int((GauxR.shape[1]-1)/2)+1
     #print(GauxR.shape)
@@ -133,6 +184,18 @@ def GetGphysFloq(omegas_floq,GauxR,GauxK,eps,hopping,gamma1,gamma2,V,Om,fit_para
     
 
 def invG0FloqFromDyson(del_aux,V,Om,eps=0):
+    '''
+    Function to calculate the non-interacting floqeut green's function, 
+    of the auxiliary system
+        del_aux (np.array): with frequenies in the first column
+            and retared and keldysh component of the auxiliary function in the second and third column 
+        V,om,eps (float): parameters of the central site
+    Returns: 
+        np.array 1d frequency the floquet matrix was calculated at
+        np.array 3d of the retareded component of the inverse non-interacting floqeut green's function 
+        (first axis is the frequency)
+        np.array 3d of the keldysh component of the inverse non-interacting floqeut green's function
+    '''
     omegas=del_aux[:,0]
     #print(omegas)
     if Om==0:
@@ -159,6 +222,17 @@ def invG0FloqFromDyson(del_aux,V,Om,eps=0):
     return np.array(omegas_floq),np.array(Gr0_floq_inv),np.array(Gk0_floq_inv)
 
 def G0FloqFromDyson(del_aux,V,Om):
+    '''
+    Function to calculate the non-interacting floqeut green's function, 
+    of the auxiliary system
+        del_aux (np.array): with frequenies in the first column
+            and retared and keldysh component of the auxiliary function in the second and third column 
+        V,Om (float): parameters of the central site
+    Returns: 
+        np.array 3d of the retareded component of the non-interacting floqeut green's function 
+        (first axis is the frequency)
+        np.array 3d of the keldysh component of the non-interacting floqeut green's function
+    '''
     omegas_floq,Gr0_floq_inv,Gk0_floq_inv=invG0FloqFromDyson(del_aux,V,Om)
     Gr0_floq=[]
     Gk0_floq=[]
@@ -169,6 +243,18 @@ def G0FloqFromDyson(del_aux,V,Om):
     return np.array(Gr0_floq),np.array(Gk0_floq)
 
 def G0FromDyson(del_aux,V,Om,eps=0):
+    '''
+    Function to calculate the non-interacting wigner green's function, 
+    of the auxiliary system
+        del_aux (np.array): with frequenies in the first column
+            and retared and keldysh component of the auxiliary function in the second and third column 
+        V,Om (float): parameters of the central site
+    Returns: 
+        np.array 1d frequency the Green's funciton was calculated at
+        np.array 3d of the retareded component of the non-interacting wigner green's function 
+        (first axis is the frequency)
+        np.array 3d of the keldysh component of the non-interacting wigner green's function
+    '''
     omegas=del_aux[:,0]
     if Om==0:
         Om=1
@@ -206,9 +292,20 @@ def G0FromDyson(del_aux,V,Om,eps=0):
     #return np.array(omegas_order),np.array(Delrfloq_om),np.array(Gk0_wigner0)
 
 def gamma(D: float = 10, beta_fict: float = 2, w= np.linspace(-10, 10, 1001),Gamma=1):
+    '''Function to calculate the phyiscal hybritization function'''
     return (1 - fit.fermi(w, -D, beta_fict)) * fit.fermi(w, D, beta_fict)*Gamma
 
 def calcGreen(eps,hopping,gamma1,gamma2,omegas=np.linspace(-20,20,10001)):
+    '''
+    Function to calculate the the non-interacting, non-driven Greens  function of the 
+    central site, given all bath parameters
+        omegas (np.array): frequenies to calculate hybridization function
+        eps,hopping,gamma1/2 (np.array): all are np.arrays describing all parameters of the system
+    Returns: 
+        np.array 1d frequencies at which the GF was calculated
+        np.array 1d of the retareded component of the GF
+        np.array 1d of the keldysh component of the GF
+    '''
     hopping_left=np.conj(hopping)
     E=np.diag(eps,0)+np.diag(hopping,1)+np.diag(hopping_left,-1)
     Gamma_plus=gamma1+gamma2
@@ -227,12 +324,33 @@ def calcGreen(eps,hopping,gamma1,gamma2,omegas=np.linspace(-20,20,10001)):
     return omegas,Gr,Gk
 
 def current(w,Gr,T=1/20,muL=0,muR=0,D=10,T_fict=0.5,Gamma=1):
+    '''
+    Function to calculate the current according to Meir-Wingreen form the retared Green's function
+    (see thesis) 
+        w (np.array): frequenies at which to calculate the current
+        T,muL,muR,D,T_fict,Gamma (float): all are floats describing parameters of the fit
+    Returns: 
+        np.array 1d current depending on the frequency
+    '''
     g=gamma(D, 1/T_fict, w= w,Gamma=Gamma)
     return 1j*np.trapezoid((fit.fermi(w,muL,1/T)-fit.fermi(w,muR,1/T))*g*(Gr-np.conj(Gr)),w)/(2*np.pi)
 
 #omegas_order,Gr0_wigner0_phys,Gk0_wigner0_phys=G0FromDyson(del_phys,2,4)
 
 def G0FromSolverSpinSym(Lindblad_params,V,Om,U,fit_params,solver_params=None):
+    '''
+        Getting the zero Wignermode directly from the solver, for a spinsymmetric set up
+        Parameters:
+            Lindblad_params (dict): dictionary containing all the parameters 
+                necessary for the Lindblad equation
+            V, Om, U (float): parameters of the central site
+            fit_params (dict): containing all parameters necessary for the fitting of the hybritization function
+            solver_params (dict): containing possible additional parameters for the solver
+        Resturns:
+            String: path to where the results of the solver are stored at
+            np.array: frequencies at which the zero mode was calculated
+            dict: dictionary containing the retared and keldysh component of the zero Wigner mode
+    '''
     H = np.array(Lindblad_params['hopping matrix'])
     Gamma1 = np.array(Lindblad_params['ReG1']) + 1j*np.array(Lindblad_params['ImG1'])
     Gamma2 = np.array(Lindblad_params['ReG2']) + 1j*np.array(Lindblad_params['ImG2'])
@@ -269,6 +387,8 @@ def G0FromSolverSpinSym(Lindblad_params,V,Om,U,fit_params,solver_params=None):
     return filename,omegas_wigner,wigner_dic
 
 def deltaTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1/2,sites=3,phis=[0]):
+    '''A function to check the calculation of the hybirtization function 
+    see, createFit and checkFit for details'''
     Om=0
     V=0
     Gamma=t**2*np.pi/D
@@ -313,7 +433,9 @@ def deltaTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1/2,sites=3,phis=[0]):
         plt.show()
 
 def calcCurrentsTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,V=3,Om=3,sites=3,phis=[0]):
-
+    '''
+        see calcCurrents, the function here just has some additonal plotting to check
+    '''
     Gamma=t**2*np.pi/D
 
     chis=[]
@@ -440,6 +562,9 @@ def calcCurrentsTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,V=3,Om=3,sites=3,phis=[
     plt.show()
 
 def save_all(filename, phis,currents_aux, currents_phys, currents_solver_aux, currents_solver_phys,E_Gr, E_Gk,chi,tags):
+    '''
+        helper function to save all the parameter to a file in json format
+    '''
     with open(filename, 'w') as f:
         json.dump({
             "phis": phis,
@@ -454,6 +579,11 @@ def save_all(filename, phis,currents_aux, currents_phys, currents_solver_aux, cu
         }, f)
 
 def load_all(filename):
+    '''
+        helper function to load the quantities
+        phis,currents_aux, currents_phys, currents_solver_aux, currents_solver_phys,E_Gr, E_Gk,chi,tags
+        from file
+    '''
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             data = json.load(f)
@@ -463,6 +593,10 @@ def load_all(filename):
         return [],[],[],[],[],[],[],[],[]
     
 def GphysFromFileTest(filepath):
+    '''
+        see GphysFromFile, simply contains some additional plotting function, etc. to check that 
+        everything works correctlx
+    '''
     t=1/np.sqrt(2)
     with open(filepath, 'r') as file:
         data = json.load(file)
@@ -529,7 +663,21 @@ def GphysFromFileTest(filepath):
     plt.show()
 
 def GphysFromFile(filepath,rep='wig'):
-
+    '''
+        Calculates the physical Green's function (either the zero Wigner mode or the Floquetmatrix) 
+        from the file containing the results from the solver
+        Parameters:
+            filepath: path to a file, storing the results from the solver 
+            rep: Wether to calculate the floquet matrix or the zero wigner mode
+        Returns:
+            (np.array): 1d array containing the frequencies the floquet matrix was calculated at
+            (np.array): 3d array, with all the Floquet matrices of the retareded component
+            (np.array): 3d array, with all the Floquet matrices of the keldysh component
+                or:
+            (np.array): 1d array containing the frequencies the floquet matrix was calculated at
+            (np.array): 1d array, with the zero wigner mode of the retareded component
+            (np.array): 1d array, with the zero wigner mode  of the keldysh component
+    '''
     with open(filepath, 'r') as file:
         data = json.load(file)
     fit_params=data['input']['fit_parameters']
@@ -563,6 +711,23 @@ def GphysFromFile(filepath,rep='wig'):
         return omegas,Gr_wig,Gk_wig
 
 def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1/np.sqrt(2),D=15,T_fict=1,plot=False):
+    '''
+        Function to create a file containing all fit parameters for the bath sites, for a constant 
+        DOS and different potentials as well as calculateing the error in the hybratization functiong 
+        and the Greens function of the central site
+        Parameters:
+            filename (string): the filepath, where the results should be stored
+            phis (list): list of potentials, for which the hybritization function should be fitted
+            change_phis (list): in case the file already exists, but a specific phi values should be 
+                refitted
+            V,Om (float): parameters of the central site (not relevant for the fitting procedure, 
+                but for calculating the error of the non interacting Green's function)
+            sites (int): number of bath sites
+            T,t,D,T_fict (float): parameters of the hybritization function
+            plot (boolean): wether to plot the hybritization and Green's function for each phi, 
+                recommended to ensure, that the relevant features are captured by the fit, 
+                weights might have to be adjusted (sofar this has to be done manually in this function)
+    '''
     #Gamma=t*np.pi/(2*D)
     Gamma=t**2*np.pi/D
 
@@ -674,6 +839,20 @@ def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1/np.
     plt.show()
 
 def checkFit(filename,phis,V,Om,t=1/np.sqrt(2),plot=True):
+    '''
+        Function to check the fit from a file containing all fit parameters for the bath sites, for a constant 
+        DOS and different potentials as well as calculateing the error in the hybratization functiong 
+        and the Greens function of the central site. 
+        Parameters:
+            filename (string): the filepath, where the results should be stored
+            phis (list): list of potentials, for which the hybritization function should be checked
+            V,Om (float): parameters of the central site (not relevant for the fitting procedure, 
+                but for calculating the error of the non interacting Green's function)
+            t (float): parameters of the hybritization function
+            plot (boolean): wether to plot the hybritization and Green's function for each phi, 
+                recommended to ensure, that the relevant features are captured by the fit, 
+                weights might have to be adjusted (sofar this has to be done manually in this function)
+    '''
     if os.path.exists(filename):
         with open(filename, "r") as f:
             fits_dict = json.load(f)
@@ -816,6 +995,22 @@ def checkFit(filename,phis,V,Om,t=1/np.sqrt(2),plot=True):
 
 
 def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,solver_params=None,plot=False):
+    '''
+        Recommend calcCurrentsFromFolder instead, since here the fit cannot be checked first
+
+        calculating the current according to Meir-Wingreen, where the solver is run, withing this 
+        function accoring to the fit parameters
+        where the directory of the results from the solver are stored in 
+        the following folder (solver_params['dirName'] , f'V{V}Om{Om}U{U}')
+        calculates the current for different potentials and saves the results to a file currents.json
+        Parameters:
+            phis: potentials to calculate the current at (results of the solver must be in the folder)
+            V,Om,U: parameters of the central site, to find the correct folder
+            sites: number of bath sites
+            T,t,D,T_fict (float): parameters of the fit, should correspond to the ones used by the solver
+            solver_params (dict): additional solver parameters, must contain the key 'dirName'
+            plot: wether to plot the auxilary and physical Greens'function for each phi
+    '''
     dirName = os.path.join(solver_params['dirName'] , f'V{V}Om{Om}U{U}')
     solver_params['dirName']=dirName
     timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -918,6 +1113,14 @@ def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1/np.sqrt(2),D=15,T_fi
     return filepath
 
 def calcCurrentsFromFolder(dirName,phis=[0,1]):
+    '''
+        same as calcCurrents, however it expects that the solver already calculated all relevant 
+        Green's functions. The results are saved to the file currents.json
+        dirName (string): folder all the solver results are stored in, for which the current should 
+            be calculated (for the results to make sense, the only difference should be phi)
+        phis (list): values at which the current should be calculated, a corresponding file from 
+        the solver must exist, phi has to be recognisible from the filename
+    '''
     t=1/np.sqrt(2)
     current_filename=f"currents.json"
     current_filepath=os.path.join(dirName,current_filename)
@@ -998,6 +1201,19 @@ def calcCurrentsFromFolder(dirName,phis=[0,1]):
 
 
 def runSolverWithFitFile(phis,V,Om,U,filename,solver_params=None):
+    '''
+        running the solver directly from a file, which contains already the
+        parameters of the bathsites, coming from the fit of the physical hybritization function
+        The results are saved to the file given by the following path: 
+            solver_params['dirName'] , f'V{V}Om{Om}U{U}'
+        Parameters:
+            phis (list): list of voltages, the solver should be run for, each fee must have its own entry in 
+            the zip file
+            V,Om,U (float): parameters of the central site
+            filename (string): the path to a file containing the fit parameters 
+                (see createFit, for the necessary structure of the file)
+            solver_params: dictionary containing any further information passed to the solver
+    '''
     dirName = os.path.join(solver_params['dirName'] , f'V{V}Om{Om}U{U}')
     solver_params['dirName']=dirName
     if os.path.exists(filename):
@@ -1027,6 +1243,12 @@ def runSolverWithFitFile(phis,V,Om,U,filename,solver_params=None):
         # plt.show(block=False)
 
 def plotDOS_phi(filepaths,functions):
+    '''
+    plotting the spectral A, distribution F and occupation function N
+    Parameters: 
+        filepaths (list): list of strings, pointing to files created by the solver 
+        function (list): list of strings, depending on what functions should be plotted
+    '''
     #fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), sharey=False)
     fig, axes = plt.subplots(1, 2, figsize=(7.5, 3), sharey=True)
     right_axes = [ax.twinx() for ax in axes]
@@ -1136,6 +1358,9 @@ def plotDOS_phi(filepaths,functions):
     plt.show()
 
 def plotJ_om(filepaths):
+    '''plotting the integrand of the current
+    filepaths (list): list of strings, pointing to files created by the solver 
+    '''
     t=1/np.sqrt(2)
     #fig, axes = plt.subplots(1, 3, figsize=(10, 3.5), sharey=True)
     fig, axes = plt.subplots(1, 3, figsize=(9, 3), sharey=True)
@@ -1198,6 +1423,10 @@ def plotJ_om(filepaths):
     plt.show()
 
 def plotCurrent(dirpaths,U0=False,fig=None,ax=None):
+    '''plotting the total current over phi
+    dirpaths (list): list of strings, pointing to folders containing 
+    files created by the solver at different phis, but same parameters of the central site
+    '''
     if fig==None:
         fig, ax = plt.subplots(1, 1, figsize=(3.5, 3.5))
     colors=['navy','#984ea3','#a65628','k']
@@ -1261,16 +1490,26 @@ def plotCurrent(dirpaths,U0=False,fig=None,ax=None):
     
     #fig.show()
 
-
+#####################################################################################
+# this section shows, how to execute the function, to obtain the relevant physical 
+# Greens functions and plotting them, some parts (especially filepaths) might 
+# have to be adjusted, read the comments carefully
 
 #deltaTest()
 #filepath='current_results/V3Om3U0/phi0-20250409-124047.json'
 #GphysFromFile(filepath)
 #createFit("Fit_constantDOS_Gamma.json",sites=5)
-
+###################################################################################################
+# here we define the parameters for the solver, including where to store the results
 solver_params={'dt':0.05,'eps':1e-8,'max_iter': 100,
                 'av_periods':4,'tf':1e1,'t_step':1e1,'av_Tau':5,'writeFile':True,
                 'dirName':'current_results5sites'}
+
+####################################################################################################
+#here we create the fitting parameters according to a given DOS, 
+# for different 'phis' they can than be checked
+#seperatly by visual inspecting all of them including a driving, if the fit is bad it might make 
+#sense to adjust the weights, such that the most relevant features are covered
 
 phis_check=[14.5]
 #createFit('Fit_constantDOS_noWeights.json',plot=True,change_phis=[],phis=[3],T=1/10,sites=5,t=1/np.sqrt(2))
@@ -1279,6 +1518,8 @@ phis_check=[14.5]
 #checkFit('Fit_constantDOS.json',phis_check,6,3,plot=True)
 #phis=[0]
 
+#####################################################################################################
+# in this section, one runs the solver for the given phis and with the fitparameters read from a file
 phis=np.arange(9.5,13,0.5)
 filepath='Fit_constantDOS.json'
 V=0
@@ -1286,6 +1527,9 @@ Om=15
 U=6
 #runSolverWithFitFile(phis,V,Om,U,filepath,solver_params)
 
+###################################################################################################
+#for the following sections, the files below must be adjusted, such that they fit a file which 
+# contains the results from the solver
 #u0
 file1='current_results5sites/V1Om3U0/phi0-20250514-102059.json'
 file2='current_results5sites/V3Om3U0/phi0-20250513-171043.json'
@@ -1299,7 +1543,7 @@ file3='current_results5sites/V6Om3U0/phi0-20250514-084826.json'
 #file2='current_results5sites/V3Om3U6/phi0-20250511-210219.json'
 #file3='current_results5sites/V6Om3U6/phi0-20250512-142907.json'
 plotDOS_phi([file1,file2],["A","N"])
-a
+
 #file1='current_results5sites/V0Om3U6/phi0-20250520-161546.json'
 #file2='current_results5sites/V0Om3U6/phi6-20250521-104833.json'
 #file2='current_results5sites/V3Om3U3/phi6-20250511-012007.json'
@@ -1320,8 +1564,10 @@ a
 #file3='current_results5sites/V3Om3U6/phi6-20250511-113146.json'
 filepaths=[file1,file2,file3]
 plotJ_om(filepaths)
-a
 
+##############################################################################
+#here we calculate and plot the current(phi) from each folder, which stores 
+#several files with the solver results
 #phis=[0]
 phis=np.arange(0,13,0.5)
 filepath=calcCurrentsFromFolder('current_results5sites/V0Om15U6',phis)
@@ -1344,10 +1590,17 @@ plt.show()
 
 
 
+
+
+###############################################################################################
+# this is an old part of the program, comparing the results of the current for 
+# the auxilariy and the physical Green's function
+# it requires a file already containing all the variable listed below
+
 #filepath=calcCurrents(phis=[0],V=3,Om=3,U=3,sites=5,T=1/25,t=1,D=15,T_fict=1,solver_params=solver_params,plot=True)
 #calcCurrentsTest(T=1/20,t=1,D=15,T_fict=1,V=3,Om=3,sites=3,phis=[0])
 #calcCurrentsTest(T=1/20,t=1,D=15,T_fict=1,V=3,Om=3,sites=3,phis=[0])
-a
+
 phis,currents_aux, currents_phys, currents_solver_aux, currents_solver_phys,Es_Gr, Es_Gk,chis,tags = load_all(filepath)
 # Zip everything together
 combined = list(zip(
