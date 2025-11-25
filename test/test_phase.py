@@ -7,12 +7,12 @@ Created on Fri Nov 22 14:11:39 2024
 """
 from numba import carray,cfunc,jit # numba helper functions
 from numba import uint32,int32, int64, uint64, complex128, boolean 
-from augmented_basis import augmented_basis
-from augmented_basis import to_extended_vector
-from augmented_basis import to_reduced_vector
+from periodicSolver.augmented_basis import augmented_basis
+from periodicSolver.augmented_basis import to_extended_vector
+from periodicSolver.augmented_basis import to_reduced_vector
 from quspin.operators import hamiltonian
 from quspin.basis import spinful_fermion_basis_general
-import augmented_basis as ab
+import periodicSolver.augmented_basis as ab
 import numpy as np
 import scipy
 
@@ -249,7 +249,7 @@ print(user_basis_sym)
 
 
 
-user_basis=augmented_basis(L,'restricted',[-1,0])
+user_basis=augmented_basis(L,'restricted',[2,0])
 print('-1')
 print(user_basis)
 
@@ -284,7 +284,7 @@ state_vector1=np.zeros(user_basis.Ns)
 
 state_vector1[0]=1
 #state_vector1[2]=1
-print(state_vector1)
+print('state_vector',state_vector1)
 extended1=to_extended_vector(state_vector1,user_basis,extended_basis)
 state_vector2=np.array([state_vector1])
 extended2=to_extended_vector(state_vector2,user_basis,extended_basis)

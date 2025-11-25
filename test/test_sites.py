@@ -9,8 +9,8 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = ("True")  # uncomment this line if omp error occurs on OSX for python 3
 os.environ["OMP_NUM_THREADS"] = str(4)# set number of OpenMP threads to run in parallel
 os.environ["MKL_NUM_THREADS"] = str(4)# set number of MKL threads to run in parallel
-from class_structure.GreensFunction_sites import calculateGreensFunction
-from class_structure.augmented_basis import augmented_basis
+from periodicSolver.GreensFunction_sites import calculateGreensFunction
+from periodicSolver.augmented_basis import augmented_basis
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -133,7 +133,7 @@ GF0=calculateGreensFunction(parameters3,[[0,0]],'up')
 
 #print((GF0_sym.plus_lV.T.conjugate()@a))
 #n=GF0.plot_n(0,500)
-GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=1000,
+Tau,Tau_total,Gr_Tau,Ga_Tau,Gk_Tau,lesser,greater=GF0._GreaterLesserSites([[0,0]],dt=0.05,eps=1e-8,max_iter=1000,
                    av_periods=4,tf=1.5e1,t_step=1.5e1,av_Tau=5,writeFile=True,
                     dirName='class_structure/results/3sitesAnalytic')
 print('total time: ',time.time()-t_start)

@@ -14,9 +14,19 @@ This project lays the foundation for studying more complex environments and inte
 - Parallelized Python implementation for efficient computations.
 - Supports spin-symmetric and general Lindblad operator setups.
 
+---
+## Install
+  -run requirements.txt
+  -run pip install -e . to run files from any folder in the repository (like test or examples), otherwise always run the python files from the root folder, to use the periodicSolver
+
 ## Modules and Usage
 
 This section describes the main classes/modules, their purpose, and how to use them in the solver workflow.
+
+### 1. `augmented_basis`
+
+**Purpose:**  
+Defines an augmented Fock basis according to the quspin requirements.
 
 **Key functionality:**
 - Builds augmented Fock basis using QuSpin.
@@ -27,11 +37,6 @@ This section describes the main classes/modules, their purpose, and how to use t
   - Site count
   - sector
   - Spin symmetry flag
-
-### 1. `augmented_basis`
-
-**Purpose:**  
-Defines an augmented Fock basis according to the quspin requirements.
 
 **Outputs:**  
 - A quspin basis object. 
@@ -114,7 +119,6 @@ Automates fitting of Lindblad operator parameters to a target hybridization func
 
 **Key functionality:**
 - Calls the existing AMEA fitting routines.
-- Converts fit results into a dictionary compatible with the `Lindblad` class.
 - Enables integration of fitted Lindblad operators into the full solver workflow.
 
 **Inputs:**  
@@ -125,12 +129,20 @@ Automates fitting of Lindblad operator parameters to a target hybridization func
 
 ### Analytic Solver (Optional)
 
-This repository also includes an **analytic solver** for special cases, useful for **benchmarking or validating** the Lindblad solver.  
+This repository also includes the calculation of analytic solutions for special cases, useful for **benchmarking or validating** the Lindblad solver.  This includes the non-interacting non-driven case, 
+the non-interacting driven case for one site, in timedomain and frequncy domain (bessel).
 It is located in the `AnalyticSolutions/` folder and can be run independently.  
 
-### Minimal Working Example
+---
+
+## Minimal Working Example
 
 
-### Examples
+## Examples
 The example folder shows how to combine the fit with the solver, to calculate the current through the 
 dot for different potentials. 
+
+---
+## ToDo
+- RAM efficient parallelization
+- weights in fit

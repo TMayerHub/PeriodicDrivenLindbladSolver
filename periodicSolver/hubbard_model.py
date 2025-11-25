@@ -12,7 +12,7 @@ Created on Mon May 22 14:59:40 2023
 from quspin.operators import hamiltonian # Hamiltonians and operators
 from quspin.basis import spinful_fermion_basis_1d
 from quspin.basis import spinful_fermion_basis_general
-from augmented_basis import augmented_basis
+from periodicSolver.augmented_basis import augmented_basis
 import numpy as np # generic math functions
 import scipy
 import matplotlib.pyplot as plt

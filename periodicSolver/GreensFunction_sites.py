@@ -19,8 +19,8 @@ import json
 #os.environ["MKL_NUM_THREADS"] = str(4)
 #os.environ['OMP_NUM_THREADS'] = '4'
 
-from class_structure.Lindblatt import createLindblad
-from class_structure.augmented_basis import augmented_basis
+from periodicSolver.Lindblatt import createLindblad
+from periodicSolver.augmented_basis import augmented_basis
 
 from quspin.operators import hamiltonian
 
@@ -606,7 +606,7 @@ class calculateGreensFunction:
         #print('parallel')
         col_int=8
         for jstart in range(0,len(rhos_a[0,:]),col_int):
-            print(jstart)
+            #print(jstart)
             if jstart +col_int > len(rhos_a[0,:]):
                 jend=len(rhos_a[0,:])
             else:
@@ -623,7 +623,7 @@ class calculateGreensFunction:
             Greater[jstart:jend]=np.array(Greater_j)
             rhos_Tau_a[:,jstart:jend]=np.column_stack(rhos_Tau_a_j)
             rhos_Tau_adag[:,jstart:jend]=np.column_stack(rhos_Tau_adag_j)
-            print('sleeping')
+            #print('sleeping')
             #time.sleep(0.5)  # Pause execution for 2 seconds to clear swap
 
             # Force garbage collection 
@@ -1357,7 +1357,7 @@ parameters_sym = {"length": 3,
 #example of running the solver directly
 #start=time.time()
 #GF0_sym=calculateGreensFunction(parameters_sym,0,'updown')
-#Tau,Gr_Tau=GF0_sym._GreaterLesser()   
+#Tau,Gr_Tau=GF0_sym._GreaterLesser([[0,0]])   
 #end=time.time()
 #print(end-start)
 #print(LindbladM)

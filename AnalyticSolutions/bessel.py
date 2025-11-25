@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import jv
-from class_structure.FloquetSpace import calculateWignerFromFile
+from periodicSolver.FloquetSpace import calculateWignerFromFile
 import os
 
 # Set the working directory to the parent directory where 'class_structure' exists

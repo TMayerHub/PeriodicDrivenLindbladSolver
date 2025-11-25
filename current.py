@@ -7,8 +7,8 @@ import time
 import json
 import glob
 import re
-from class_structure.GreensFunction_sites import  calculateGreensFunction as gf_solver
-from class_structure.FloquetSpace import  calculateWignerFromFile,calculateFloquetFromFile
+from periodicSolver.GreensFunction_sites import  calculateGreensFunction as gf_solver
+from periodicSolver.FloquetSpace import  calculateWignerFromFile,calculateFloquetFromFile
 
 #matrices,chi,del_aux, del_phys=fit.get_parameters(1/20,1.5,-1.5,20,1,fit.flat_delta,5,plot=True,return_phys=True)
 #print('chi',chi)
