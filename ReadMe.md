@@ -139,10 +139,28 @@ It is located in the `AnalyticSolutions/` folder and can be run independently.
 
 
 ## Examples
-The example folder shows how to combine the fit with the solver, to calculate the current through the 
-dot for different potentials. 
+The minimal example shows, how to plot the zero Wigner mode given the system parameters. 
+To get the Floquet matrix instead one simply has to exchange 
+the function calculateWignerFromFile with calculateFloquetFromFile
+
+The example current.py shows how to combine the fit of the hybritzization function with the solver, to calculate the current through the dot for different potentials. Read trough to comments carefully, 
+lines of code have to be executed one after the other. Additionally, there is also a json file, containing fitted system parameters extracted for the fit. This can be used as an example input for the solver (see also current.py). 
 
 ---
 ## ToDo
-- RAM efficient parallelization
-- weights in fit
+- RAM efficient parallelization: at the moment the scipy Runge Kutta method is used for time evolution.
+  This stores the whole state vector at each timestep, which is unnecessary, one only needs the 
+  expectation value. Especially when parallelizing this can lead to an overload in RAM.
+  Consider implementing a timeevolution that only stores the expectation at each timestep.
+  As a quickfix if you run into overload: reduce the number of n_jobs in GreensFunction_sites.stepsGreaterLesser or reduce t_step=2, since after each t_step the Runge Kutta is interupted and 
+  only the expectation value is saved
+- weights in fit: Running the fit for the hybritization function without weight adjustment, often leads 
+  to a large missmatch between the physical and auxilary non-interacting driven Green's function and often doesn't capture the main features, especially of the keldysh component. 
+  For automatic fitting one might have to adjust the fitting procedure to better capture the Green's 
+  function of a driven site. As a quick fix, always check the resulting non-interacting Green's function and adjust the weights accordingly (often a higher weight around the chemical potential 
+  is helpful)
+
+---
+## Details
+For more Details on the Algorithm and the Physics see my Master thesis:
+ Mayer T. (2025) "Impurity solver for strongly correlated periodically driven systems" (Master thesis, TU Graz)

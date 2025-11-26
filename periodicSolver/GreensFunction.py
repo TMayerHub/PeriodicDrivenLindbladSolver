@@ -10,7 +10,7 @@ import os
 #os.environ["MKL_NUM_THREADS"] = str(4)
 #os.environ['OMP_NUM_THREADS'] = '4'
 
-from Lindblatt import createLindblad
+from periodicSolver.Lindblad import createLindblad
 from augmented_basis import augmented_basis
 
 from quspin.operators import hamiltonian

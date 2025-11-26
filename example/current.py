@@ -7,11 +7,14 @@ import time
 import json
 import glob
 import re
+from pathlib import Path
 from periodicSolver.GreensFunction_sites import  calculateGreensFunction as gf_solver
 from periodicSolver.FloquetSpace import  calculateWignerFromFile,calculateFloquetFromFile
 
 #matrices,chi,del_aux, del_phys=fit.get_parameters(1/20,1.5,-1.5,20,1,fit.flat_delta,5,plot=True,return_phys=True)
 #print('chi',chi)
+script_dir = Path(__file__).parent 
+
 def fermi(w: np.ndarray, mu: float, beta: float) -> np.ndarray:
     """This version avoids exponential overflow/underflow"""
 
@@ -1508,8 +1511,8 @@ solver_params={'dt':0.05,'eps':1e-8,'max_iter': 100,
 ####################################################################################################
 #here we create the fitting parameters according to a given DOS, 
 # for different 'phis' they can than be checked
-#seperatly by visual inspecting all of them including a driving, if the fit is bad it might make 
-#sense to adjust the weights, such that the most relevant features are covered
+# seperatly by visual inspecting all of them including a driving, if the fit is bad it might make 
+# sense to adjust the weights, such that the most relevant features are covered
 
 phis_check=[14.5]
 #createFit('Fit_constantDOS_noWeights.json',plot=True,change_phis=[],phis=[3],T=1/10,sites=5,t=1/np.sqrt(2))
@@ -1529,11 +1532,11 @@ U=6
 
 ###################################################################################################
 #for the following sections, the files below must be adjusted, such that they fit a file which 
-# contains the results from the solver
+# contains the results from the solver, the solver must have been run first, so files actually exist
 #u0
-file1='current_results5sites/V1Om3U0/phi0-20250514-102059.json'
-file2='current_results5sites/V3Om3U0/phi0-20250513-171043.json'
-file3='current_results5sites/V6Om3U0/phi0-20250514-084826.json'
+file1=script_dir /'current_results5sites/V1Om3U0/phi0-20250514-102059.json'
+file2=script_dir /'current_results5sites/V3Om3U0/phi0-20250513-171043.json'
+file3=script_dir /'current_results5sites/V6Om3U0/phi0-20250514-084826.json'
 #u3
 #file1='current_results5sites/V1Om3U3/phi0-20250514-111148.json'
 #file2='current_results5sites/V3Om3U3/phi0-20250510-190839.json'
@@ -1570,17 +1573,18 @@ plotJ_om(filepaths)
 #several files with the solver results
 #phis=[0]
 phis=np.arange(0,13,0.5)
-filepath=calcCurrentsFromFolder('current_results5sites/V0Om15U6',phis)
-dirV0U3='current_results5sites/V0Om10U3'
-dirV1U3='current_results5sites/V1Om3U3'
-dirV3U3='current_results5sites/V3Om3U3'
-dirV6U3='current_results5sites/V6Om3U3'
+filepath=calcCurrentsFromFolder('current_results5sites/V0Om10U3',phis)
+dirV0U3=script_dir /'current_results5sites/V0Om10U3'
+dirV1U3=script_dir /'current_results5sites/V1Om3U3'
+dirV3U3=script_dir /'current_results5sites/V3Om3U3'
+dirV6U3=script_dir /'current_results5sites/V6Om3U3'
 
-dirV0U6='current_results5sites/V0Om15U6'
-dirV1U6='current_results5sites/V1Om3U6'
-dirV3U6='current_results5sites/V3Om3U6'
-dirV6U6='current_results5sites/V6Om3U6'
+dirV0U6=script_dir /'current_results5sites/V0Om15U6'
+dirV1U6=script_dir /'current_results5sites/V1Om3U6'
+dirV3U6=script_dir /'current_results5sites/V3Om3U6'
+dirV6U6=script_dir /'current_results5sites/V6Om3U6'
 
+# calcCurrentsFromFolder must be executed for each folder, before plotting the current
 fig, axes = plt.subplots(1, 3, figsize=(10, 3), sharey=True)
 plotCurrent([dirV1U3,dirV3U3,dirV6U3,dirV0U3],True,fig,axes[0])
 plotCurrent([dirV1U3,dirV3U3,dirV6U3,dirV0U3],False,fig,axes[1])

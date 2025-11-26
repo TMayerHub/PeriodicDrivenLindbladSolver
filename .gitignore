@@ -1,8 +1,10 @@
 .DS_Store
 *.json
+!example/Fit_constantDOS.json
 __pycache__/
 .ipynb_checkpoints/
 *.log
 cache/
 cache_dir/
 *.egg-info/
+results/
