@@ -16,8 +16,8 @@ This project lays the foundation for studying more complex environments and inte
 
 ---
 ## Install
-  -run requirements.txt
-  -run pip install -e . to run files from any folder in the repository (like test or examples), otherwise always run the python files from the root folder, to use the periodicSolver
+- run requirements.txt
+- run pip install -e . to run files from any folder in the repository (like test or examples), otherwise always run the python files from the root folder, when using the periodicSolver module.
 
 ## Modules and Usage
 
@@ -120,10 +120,14 @@ It is located in the `AnalyticSolutions/` folder and can be run independently.
 
 ---
 
-## Minimal Working Example
+### Test (Optional)
 
+A repository used for checking the functionally of each class in periodicSolver seperatly. 
+Can be used for testing and can be helpful for a more in depth understanding of the code. 
 
-## Examples
+---
+
+# Examples
 The minimal example shows, how to plot the zero Wigner mode given the system parameters. 
 To get the Floquet matrix instead one simply has to exchange 
 the function calculateWignerFromFile with calculateFloquetFromFile
@@ -132,7 +136,7 @@ The example current.py shows how to combine the fit of the hybritzization functi
 lines of code have to be executed one after the other. Additionally, there is also a json file, containing fitted system parameters extracted for the fit. This can be used as an example input for the solver (see also current.py). 
 
 ---
-## ToDo
+# ToDo
 - RAM efficient parallelization: at the moment the scipy Runge Kutta method is used for time evolution.
   This stores the whole state vector at each timestep, which is unnecessary, one only needs the 
   expectation value. Especially when parallelizing this can lead to an overload in RAM.
@@ -146,6 +150,6 @@ lines of code have to be executed one after the other. Additionally, there is al
   is helpful)
 
 ---
-## Details
+# Details
 For more Details on the Algorithm and the Physics see my Master thesis:
  Mayer T. (2025) "Impurity solver for strongly correlated periodically driven systems" (Master thesis, TU Graz) [Link](https://online.tugraz.at/tug_online/wbAbs.showThesis?pThesisNr=85229&pOrgNr=2382)
