@@ -63,7 +63,6 @@ Defines constructs the Lindblad operator on a given basis, with the system param
 **Outputs:**  
 - `Lindblad` object capable of generating the time evolution operator.
 
----
 
 ### 3. `calculateGreensFunction_sites`
 
@@ -89,7 +88,6 @@ Computes time-domain expectation values for Green's functions for different site
 - Time arrays `t` and `τ`
 - Expectation values `a_ij(t+τ,t)`
 
----
 
 ### 4. `FloquetSpace`
 
@@ -110,7 +108,6 @@ Converts time-domain results into Floquet or Wigner representations.
 **Outputs:**  
 - Dictionary with Floquet/Wigner matrices, frequency points, and site indices
 
----
 
 ### Analytic Solver (Optional)
 
@@ -118,7 +115,6 @@ This repository also includes the calculation of analytic solutions for special 
 the non-interacting driven case for one site, in timedomain and frequncy domain (bessel).
 It is located in the `AnalyticSolutions/` folder and can be run independently.  
 
----
 
 ### Test (Optional)
 
