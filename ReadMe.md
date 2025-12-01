@@ -112,21 +112,6 @@ Converts time-domain results into Floquet or Wigner representations.
 
 ---
 
-### 5. `Fit wrapper`
-
-**Purpose:**  
-Automates fitting of Lindblad operator parameters to a target hybridization function.
-
-**Key functionality:**
-- Calls the existing AMEA fitting routines.
-- Enables integration of fitted Lindblad operators into the full solver workflow.
-
-**Inputs:**  
-- Target hybridization function and parameters of the hybridization function as well as number of bath sites
-
-**Outputs:**  
-- Parameters necessary to initialize the Lindblad Solver
-
 ### Analytic Solver (Optional)
 
 This repository also includes the calculation of analytic solutions for special cases, useful for **benchmarking or validating** the Lindblad solver.  This includes the non-interacting non-driven case, 
@@ -163,4 +148,4 @@ lines of code have to be executed one after the other. Additionally, there is al
 ---
 ## Details
 For more Details on the Algorithm and the Physics see my Master thesis:
- Mayer T. (2025) "Impurity solver for strongly correlated periodically driven systems" (Master thesis, TU Graz)
+ Mayer T. (2025) "Impurity solver for strongly correlated periodically driven systems" (Master thesis, TU Graz) [Link](https://online.tugraz.at/tug_online/wbAbs.showThesis?pThesisNr=85229&pOrgNr=2382)
