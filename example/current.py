@@ -1,7 +1,6 @@
-import Fit.simple_fit_wrapper as fit
 import numpy as np
+from scipy.signal import hilbert
 import os
-from Fit.utils import KK
 import matplotlib.pyplot as plt
 import time
 import json
@@ -33,6 +32,28 @@ def fermi(w: np.ndarray, mu: float, beta: float) -> np.ndarray:
     f[~(pos_exp | neg_exp)] = 1 / (np.exp(energy[~(pos_exp | neg_exp)] * beta) + 1)
 
     return f
+
+def KK(w, GF_R_im, same=True) -> tuple[np.ndarray, int]:
+    """
+    Calculates the real part of the retarded GF from the imaginary one via Kramser-Kronig (~Hilber transformation).
+
+    Parameters:
+        - w (np.ndarray): Frequencies.
+        - GF_R_im_init (np.ndarray): Imaginary part of the retarded part of the GF.
+    """
+
+    delta_w = w[1] - w[0]
+    padding_region = 500
+    points_padding = int(padding_region // delta_w)
+    points_data = len(GF_R_im)
+
+    GF_R_im = np.concatenate((np.zeros(points_padding), GF_R_im, np.zeros(points_padding)))
+    GF_R = 1j * hilbert(GF_R_im)
+
+    if same == True:
+        GF_R = GF_R[points_padding : points_padding + points_data]
+
+    return GF_R, points_padding
 
 def Wigner0ToMatrix(om,omegas,wigner0,Om):
     """
@@ -296,7 +317,7 @@ def G0FromDyson(del_aux,V,Om,eps=0):
 
 def gamma(D: float = 10, beta_fict: float = 2, w= np.linspace(-10, 10, 1001),Gamma=1):
     '''Function to calculate the phyiscal hybritization function'''
-    return (1 - fit.fermi(w, -D, beta_fict)) * fit.fermi(w, D, beta_fict)*Gamma
+    return (1 - fermi(w, -D, beta_fict)) * fermi(w, D, beta_fict)*Gamma
 
 def calcGreen(eps,hopping,gamma1,gamma2,omegas=np.linspace(-20,20,10001)):
     '''
@@ -336,7 +357,7 @@ def current(w,Gr,T=1/20,muL=0,muR=0,D=10,T_fict=0.5,Gamma=1):
         np.array 1d current depending on the frequency
     '''
     g=gamma(D, 1/T_fict, w= w,Gamma=Gamma)
-    return 1j*np.trapezoid((fit.fermi(w,muL,1/T)-fit.fermi(w,muR,1/T))*g*(Gr-np.conj(Gr)),w)/(2*np.pi)
+    return 1j*np.trapezoid((fermi(w,muL,1/T)-fermi(w,muR,1/T))*g*(Gr-np.conj(Gr)),w)/(2*np.pi)
 
 #omegas_order,Gr0_wigner0_phys,Gk0_wigner0_phys=G0FromDyson(del_phys,2,4)
 
@@ -388,181 +409,6 @@ def G0FromSolverSpinSym(Lindblad_params,V,Om,U,fit_params,solver_params=None):
     sites,omegas_wigner,wigner_dic=calculateWignerFromFile(filepath,0,['retarded','keldysh'],['0 0'])
     
     return filename,omegas_wigner,wigner_dic
-
-def deltaTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1/2,sites=3,phis=[0]):
-    '''A function to check the calculation of the hybirtization function 
-    see, createFit and checkFit for details'''
-    Om=0
-    V=0
-    Gamma=t**2*np.pi/D
-    for phi in phis:
-        print(phi)
-        muL=phi/2
-        muR=-muL
-        matrices,chi,del_aux, del_phys=fit.get_parameters(T,muL,muR,D,T_fict,fit.flat_delta,Gamma=Gamma,sites=sites,plot=False,return_phys=True)
-        del_auxfit_r,_=KK(del_aux[:,0],del_aux[:,1])
-        del_auxfit_k=1j*del_aux[:,2]
-        del_physfit_r,_=KK(del_phys[:,0],del_phys[:,1])
-        del_physfit_k=1j*del_phys[:,2]
-        H = matrices['hopping matrix']
-        gamma1 = matrices['ReG1'] + 1j*matrices['ImG1']
-        gamma2 = matrices['ReG2'] + 1j*matrices['ImG2']
-        eps = np.diag(H)
-        hopping = np.diag(H,k=1)
-        omegas_del=np.linspace(-20,20,500)
-        del_auxr,del_auxk=DelAux(omegas_del,eps,hopping,gamma1,gamma2)
-        del_physr = - (1 - fermi(omegas_del, -D, 1/T_fict)) * fermi(omegas_del, D, 1/T_fict)*Gamma*1j
-        del_physk = del_physr * (1 - 2 * fermi(omegas_del, muL, 1/T)+1 - 2 * fermi(omegas_del, muR, 1/T))
-        #print(Gamma)
-
-        #GetGphys(omegas_del,0,eps,hopping,gamma1,gamma2,V,Om)
-        plt.figure()
-        plt.title('auxilary')
-        plt.plot(del_aux[:,0],del_auxfit_r.imag,label='retarded fit')
-        plt.plot(del_aux[:,0],del_auxfit_k.imag,label='keldysh fit')
-        plt.plot(omegas_del,del_auxr.imag,linestyle='dashed',label='retarded')
-        plt.plot(omegas_del,del_auxk.imag,linestyle='dashed',label='keldysh')
-        plt.legend()
-        plt.show(block=False)
-
-        plt.figure()
-        plt.title('physikal')
-        plt.plot(del_phys[:,0],del_physfit_r.imag,label='retarded fit')
-        plt.plot(del_phys[:,0],del_physfit_k.imag,label='keldysh fit')
-        plt.plot(omegas_del,del_physr.imag,linestyle='dashed',label='retarded')
-        #plt.plot(omegas_del,-fermi(-omegas_del, D, 1/T_fict)*(1 - fermi(omegas_del, -D, 1/T_fict)),label='fermi')
-        plt.plot(omegas_del,del_physk.imag,linestyle='dashed',label='keldysh')
-        plt.legend()
-        plt.show()
-
-def calcCurrentsTest(T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,V=3,Om=3,sites=3,phis=[0]):
-    '''
-        see calcCurrents, the function here just has some additonal plotting to check
-    '''
-    Gamma=t**2*np.pi/D
-
-    chis=[]
-    Es_Gr=[]
-    Es_Gk=[]
-    currents_phys=[]
-    currents_aux=[]
-    currents_solver=[]
-    for phi in phis:
-        
-        muL=phi/2
-        muR=-muL
-        fit_params = {'phi':phi,'T':T,'D':D,'T_fict':T_fict,'sites':sites}
-        #get_parameters(T=1/20,muL=0,muR=0,D=10,T_fict=0.5,delta=flat_delta,Gamma=1,sites=5,
-                    #return_phys=False,plot=False)
-        print(Gamma)
-        matrices,chi,del_aux, del_phys=fit.get_parameters(T,muL,muR,D,T_fict,fit.flat_delta,Gamma=Gamma,sites=sites,plot=False,return_phys=True)
-        print(matrices)
-        H = matrices['hopping matrix']
-        gamma1 = matrices['ReG1'] + 1j*matrices['ImG1']
-        gamma2 = matrices['ReG2'] + 1j*matrices['ImG2']
-        eps = np.diag(H)
-        #append zero since the last site only has one hopping
-        hopping = np.diag(H,k=1)
-        omanal,Gr_analytic,Gk_analytic=calcGreen(eps,hopping,gamma1,gamma2)
-
-        omegas_phys,Gr0_wigner0_phys,Gk0_wigner0_phys=G0FromDyson(del_phys,V,Om)
-        omegas_aux,Gr0_wigner0_aux,Gk0_wigner0_aux=G0FromDyson(del_aux,V,Om)
-
-
-        Delr_imag=del_aux[:,1]
-        Delr_real,_=KK(del_aux[:,0],Delr_imag)
-        Delr=Delr_real+1j*Delr_imag
-
-        sorted_phys = np.argsort(omegas_phys)
-        omegas_phys = omegas_phys[sorted_phys]
-        Gr0_wigner0_phys = Gr0_wigner0_phys[sorted_phys]
-        Gk0_wigner0_phys = Gk0_wigner0_phys[sorted_phys]
-
-        sorted_aux = np.argsort(omegas_aux)
-        omegas_aux = omegas_aux[sorted_aux]
-        Gr0_wigner0_aux = Gr0_wigner0_aux[sorted_aux]
-        Gk0_wigner0_aux = Gk0_wigner0_aux[sorted_aux]
-        tag,omegas_wigner,wigner_dic=G0FromSolverSpinSym(matrices,V,Om,0,fit_params,solver_params)
-        plt.figure()
-        om_reg=15
-        plt.title('retarded phi='+str(phi))
-        plt.plot(omegas_phys,Gr0_wigner0_phys.imag,color='navy',label=r'$\mathrm{Im}(G_0^R)\ \mathrm{from}\ \Delta_{\mathrm{phys}}$')
-        #plt.plot(omegas_phys,Gk0_wigner0_phys.imag,color='blue',label='keldysh')
-        plt.plot(omegas_aux,Gr0_wigner0_aux.imag,color='#f781bf',label=r'$\mathrm{Im}(G_0^R)\ \mathrm{from}\ \Delta_{\mathrm{aux}}$')
-        #plt.plot(omanal,Gr_analytic.real,color='green',label='analytic from fit',linestyle='dashed')
-        ret_wig_imag=wigner_dic['0 0']['retarded'][0].imag
-        plt.plot(omegas_wigner[(omegas_wigner>-om_reg )& (omegas_wigner<om_reg)],ret_wig_imag[(omegas_wigner>-om_reg) & (omegas_wigner<om_reg)],color='#984ea3',
-                 linestyle='dashed',label=r'$\mathrm{Im}(G_0^R)\ \mathrm{from solver}\ $')
-        #plt.show(block=False)
-        #plt.plot(omegas_aux,Gk0_wigner0_aux.imag,color='green',label='aux keldysh',linestyle='dashed')
-        plt.legend()
-
-        #plt.show(block=False)
-        plt.figure()
-        plt.title('keldysh phi='+str(phi))
-        plt.plot(omegas_phys,Gk0_wigner0_phys.imag,color='navy',label=r'$\mathrm{Im}(G_0^K)\ \mathrm{from}\ \Delta_{\mathrm{phys}}$')
-        plt.plot(omegas_aux,Gk0_wigner0_aux.imag,color='#f781bf',label=r'$\mathrm{Im}(G_0^K)\ \mathrm{from}\ \Delta_{\mathrm{aux}}$')
-        #plt.plot(omanal,Gk_analytic.imag,color='green',label='analytic from fit',linestyle='dashed')
-        kel_wig_imag=wigner_dic['0 0']['keldysh'][0].imag
-        plt.plot(omegas_wigner[(omegas_wigner>-om_reg )& (omegas_wigner<om_reg)],kel_wig_imag[(omegas_wigner>-om_reg) & (omegas_wigner<om_reg)],color='#984ea3',
-                 linestyle='dashed',label=r'$\mathrm{Im}(G_0^K)\ \mathrm{from solver}\ $')
-        #plt.show(block=False)
-        #plt.plot(omegas_aux,Gk0_wigner0_aux.imag,color='green',label='aux keldysh',linestyle='dashed')
-        plt.legend()
-
-        plt.show(block=False)
-
-        current_aux=current(omegas_aux,Gr0_wigner0_aux,T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-        current_phys=current(omegas_phys,Gr0_wigner0_phys,T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-        current_solver=current(omegas_wigner,wigner_dic['0 0']['retarded'][0],T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-        currents_phys.append(current_phys)
-        currents_aux.append(current_aux)
-        currents_solver.append(current_solver)
-
-        E_Gr=np.sqrt(np.trapezoid((abs(Gr0_wigner0_phys.imag-Gr0_wigner0_aux.imag))**2,omegas_phys))/np.sqrt(np.trapezoid(abs(Gr0_wigner0_phys.imag)**2,omegas_phys))
-        E_Gk=np.sqrt(np.trapezoid((abs(Gk0_wigner0_phys.imag-Gk0_wigner0_aux.imag))**2,omegas_phys))/np.sqrt(np.trapezoid(abs(Gk0_wigner0_phys.imag)**2,omegas_phys))
-        chis.append(chi)
-        Es_Gr.append(E_Gr)
-        Es_Gk.append(E_Gk)
-        #chi=chi/Gamma
-        print(chi)
-        print(E_Gr)
-        print(E_Gk)
-    currents_phys=np.array(currents_phys)
-    currents_aux=np.array(currents_aux)
-    currents_solver=np.array(currents_solver)
-    fig, ax1 = plt.subplots()
-    #plt.show()
-    #Plot Gr and Gk on the left axis
-    ax1.set_xlabel('phis')
-    ax1.set_ylabel('Gr / Gk')
-    ax1.plot(phis, Es_Gr, label='Gr',color='orange')
-    ax1.plot(phis, Es_Gk, label='Gk',color='blue')
-    ax1.plot(phis,abs(currents_phys-currents_aux),label='current')
-    ax1.tick_params(axis='y')
-    ax1.legend(loc="center left")
-    # Create a second y-axis for chi
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('chi')
-    ax2.plot(phis, chis, label='chi',color='red')
-    ax2.tick_params(axis='y')
-    #plt.legend()
-    ax2.legend(loc="center right")
-    # Set title
-    plt.title('Errors')
-
-    # Show plot
-    plt.show(block=False)
-
-    plt.figure()
-    plt.title('currents')
-    plt.plot(phis,currents_phys.real,label='current phys')
-    plt.plot(phis,currents_aux.real,label='current aux')
-    plt.plot(phis,currents_solver.real,label='current solver')
-    #plt.plot(phis,currents_phys.imag,label='current phys imag')
-    #plt.plot(phis,currents_aux.imag,label='current aux imag')
-    plt.legend()
-    plt.show()
 
 def save_all(filename, phis,currents_aux, currents_phys, currents_solver_aux, currents_solver_phys,E_Gr, E_Gk,chi,tags):
     '''
@@ -713,134 +559,6 @@ def GphysFromFile(filepath,rep='wig'):
         #plt.show()
         return omegas,Gr_wig,Gk_wig
 
-def createFit(filename,phis=[0,1],change_phis=[],V=3,Om=3,sites=3,T=1/10,t=1/np.sqrt(2),D=15,T_fict=1,plot=False):
-    '''
-        Function to create a file containing all fit parameters for the bath sites, for a constant 
-        DOS and different potentials as well as calculateing the error in the hybratization functiong 
-        and the Greens function of the central site
-        Parameters:
-            filename (string): the filepath, where the results should be stored
-            phis (list): list of potentials, for which the hybritization function should be fitted
-            change_phis (list): in case the file already exists, but a specific phi values should be 
-                refitted
-            V,Om (float): parameters of the central site (not relevant for the fitting procedure, 
-                but for calculating the error of the non interacting Green's function)
-            sites (int): number of bath sites
-            T,t,D,T_fict (float): parameters of the hybritization function
-            plot (boolean): wether to plot the hybritization and Green's function for each phi, 
-                recommended to ensure, that the relevant features are captured by the fit, 
-                weights might have to be adjusted (sofar this has to be done manually in this function)
-    '''
-    #Gamma=t*np.pi/(2*D)
-    Gamma=t**2*np.pi/D
-
-    if os.path.exists(filename):
-        with open(filename, "r") as f:
-            fits_dict = json.load(f)
-    else:
-        fits_dict = {}
-    for key in change_phis:
-        if str(key) in fits_dict:
-            del fits_dict[str(key)]
-    for phi in phis:
-        print(phi)
-        muL=phi/2
-        muR=-muL
-
-        if str(phi) in fits_dict:
-            print(f"Warning: Key '{phi}' already exists.")
-            continue
-        
-        if phi>0.6:
-            w_L1=muL-0.4
-            w_L2=muL+0.3
-            w_R1=muR-0.3
-            w_R2=muR+0.4
-            weights=f"2,{w_L1},{w_L2},{w_R1},{w_R2}"
-        else:
-            weights=f"50,-0.5,0.5"
-        
-        print(weights)
-        fit_params = {'phi':phi,'T':T,'D':D,'T_fict':T_fict,'sites':sites,'weights':weights}
-        #fit_params = {'phi':phi,'T':T,'D':D,'T_fict':T_fict,'sites':sites,'weights':'None'}
-        #print(Gamma)
-        matrices,chi,del_aux, del_phys=fit.get_parameters(T,muL,muR,D,T_fict,fit.flat_delta,Gamma=Gamma,sites=sites,plot=False,return_phys=True,weights=weights)
-
-        matrices_lists = {key: value.tolist() if isinstance(value, np.ndarray) else value
-             for key, value in matrices.items()}
-
-        omegas_phys,Gr0_wigner0_phys,Gk0_wigner0_phys=G0FromDyson(del_phys,V,Om)
-        omegas_aux,Gr0_wigner0_aux,Gk0_wigner0_aux=G0FromDyson(del_aux,V,Om)
-
-        sorted_phys = np.argsort(omegas_phys)
-        omegas_phys = omegas_phys[sorted_phys]
-        Gr0_wigner0_phys = Gr0_wigner0_phys[sorted_phys]
-        Gk0_wigner0_phys = Gk0_wigner0_phys[sorted_phys]
-
-        sorted_aux = np.argsort(omegas_aux)
-        omegas_aux = omegas_aux[sorted_aux]
-        Gr0_wigner0_aux = Gr0_wigner0_aux[sorted_aux]
-        Gk0_wigner0_aux = Gk0_wigner0_aux[sorted_aux]
-
-        if plot:
-            print('plotting')
-            #print(omegas_aux)
-            start_aux=np.where(omegas_aux < -15)[0][-1]
-            end_aux=np.where(omegas_aux > 15)[0][0]
-            start_phys=np.where(omegas_phys < -15)[0][-1]
-            end_phys=np.where(omegas_phys > 15)[0][0]
-            plt.figure()
-            plt.title(f'non interacting phi = {phi}')
-            plt.plot(omegas_phys[start_phys:end_phys],Gr0_wigner0_phys.imag[start_phys:end_phys],label='retarded phys', color = 'navy')
-            plt.plot(omegas_phys[start_phys:end_phys],Gk0_wigner0_phys.imag[start_phys:end_phys],label='keldysh phys', color = '#a65628')
-            plt.plot(omegas_aux[start_aux:end_aux],Gr0_wigner0_aux.imag[start_aux:end_aux],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(omegas_aux[start_aux:end_aux],Gk0_wigner0_aux.imag[start_aux:end_aux],label='keldysh aux',color = '#f78843',linestyle='dashed')
-            plt.legend()
-            plt.show(block=False)
-
-            plt.figure()
-            plt.title('Delta')
-            plt.plot(del_phys[:,0],del_phys[:,1],label='retarded phys', color = 'navy')
-            plt.plot(del_phys[:,0],del_phys[:,2],label='keldysh phys', color = '#a65628')
-            plt.plot(del_aux[:,0],del_aux[:,1],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(del_aux[:,0],del_aux[:,2],label='keldysh aux',color = '#f78843',linestyle='dashed')
-            plt.legend()
-            plt.show()
-        
-        E_Gr=float(np.sqrt(np.trapezoid((abs(Gr0_wigner0_phys-Gr0_wigner0_aux))**2,omegas_phys))/np.sqrt(np.trapezoid(abs(Gr0_wigner0_phys)**2,omegas_phys)))
-        E_Gk=float(np.sqrt(np.trapezoid((abs(Gk0_wigner0_phys.imag-Gk0_wigner0_aux.imag))**2,omegas_phys))/np.sqrt(np.trapezoid(abs(Gk0_wigner0_phys.imag)**2,omegas_phys)))
-        Gk_int=float(np.sqrt(np.trapezoid(abs(Gk0_wigner0_phys.imag)**2,omegas_phys)))
-        chi=float(chi)
-        fit_results={'matrices':matrices_lists,'chi':chi,'E_Gr':E_Gr,'E_Gk':E_Gk,'Gk_int':Gk_int}
-        fit_dict = {'fit_parameters': fit_params,'fit_results':fit_results}
-        
-        print(chi)
-        print(type(chi))
-        print(E_Gr)
-        print(type(E_Gr))
-        fits_dict[phi]=fit_dict
-        with open(filename, "w") as f:
-            json.dump(fits_dict, f, indent=2)
-    
-    fits_dict = {float(k): v for k, v in fits_dict.items()}
-
-    phi_values = sorted(fits_dict.keys())
-    e_gr_values = [fits_dict[phi]["fit_results"]["E_Gr"] for phi in phi_values]
-    e_gk_values = [fits_dict[phi]["fit_results"]["E_Gk"] for phi in phi_values]
-    chi_values = [fits_dict[phi]["fit_results"]["chi"] for phi in phi_values]
-    int_gk_values = [fits_dict[phi]["fit_results"]["Gk_int"] for phi in phi_values]
-
-    plt.plot(phi_values, e_gr_values, marker='o', label='E_Gr',color='#984ea3')
-    plt.plot(phi_values, e_gk_values, marker='o', label='E_Gk',color='#a65628')
-    plt.plot(phi_values, chi_values, marker='o', label='Chi',color='navy')
-    plt.plot(phi_values, int_gk_values, marker='o', label='in gk',color='k')
-    plt.xlabel("phi")
-    plt.ylabel("Error")
-    plt.title("V3Om3")
-    plt.grid(True)
-    plt.legend()
-    plt.show()
-
 def checkFit(filename,phis,V,Om,t=1/np.sqrt(2),plot=True):
     '''
         Function to check the fit from a file containing all fit parameters for the bath sites, for a constant 
@@ -861,6 +579,7 @@ def checkFit(filename,phis,V,Om,t=1/np.sqrt(2),plot=True):
             fits_dict = json.load(f)
     else:
         print('no such file')
+    print(fits_dict)
     E_Grs=[]
     E_Gks=[]
     Chis=[]
@@ -997,123 +716,6 @@ def checkFit(filename,phis,V,Om,t=1/np.sqrt(2),plot=True):
     plt.show()
 
 
-def calcCurrents(phis=[0,1],V=3,Om=3,U=0,sites=3,T=1/20,t=1/np.sqrt(2),D=15,T_fict=1,solver_params=None,plot=False):
-    '''
-        Recommend calcCurrentsFromFolder instead, since here the fit cannot be checked first
-
-        calculating the current according to Meir-Wingreen, where the solver is run, withing this 
-        function accoring to the fit parameters
-        where the directory of the results from the solver are stored in 
-        the following folder (solver_params['dirName'] , f'V{V}Om{Om}U{U}')
-        calculates the current for different potentials and saves the results to a file currents.json
-        Parameters:
-            phis: potentials to calculate the current at (results of the solver must be in the folder)
-            V,Om,U: parameters of the central site, to find the correct folder
-            sites: number of bath sites
-            T,t,D,T_fict (float): parameters of the fit, should correspond to the ones used by the solver
-            solver_params (dict): additional solver parameters, must contain the key 'dirName'
-            plot: wether to plot the auxilary and physical Greens'function for each phi
-    '''
-    dirName = os.path.join(solver_params['dirName'] , f'V{V}Om{Om}U{U}')
-    solver_params['dirName']=dirName
-    timestr = time.strftime("%Y%m%d-%H%M%S")
-    #filename=f"currents-{timestr}.json"
-    filename=f"currents.json"
-    filepath=os.path.join(dirName,filename)
-    #print(filepath)
-    Gamma=t**2*np.pi/D
-
-
-    
-    phis_file,currents_aux, currents_phys, currents_solver_aux, currents_solver_phys,Es_Gr, Es_Gk,chis,tags = load_all(filepath)
-    for phi in phis:
-        print(phi)
-        muL=phi/2
-        muR=-muL
-        fit_params = {'phi':phi,'T':T,'D':D,'T_fict':T_fict,'sites':sites}
-        #print(Gamma)
-        matrices,chi,del_aux, del_phys=fit.get_parameters(T,muL,muR,D,T_fict,fit.flat_delta,Gamma=Gamma,sites=sites,plot=False,return_phys=True)
-        #print(matrices)
-
-        omegas_phys,Gr0_wigner0_phys,Gk0_wigner0_phys=G0FromDyson(del_phys,V,Om)
-        omegas_aux,Gr0_wigner0_aux,Gk0_wigner0_aux=G0FromDyson(del_aux,V,Om)
-
-        sorted_phys = np.argsort(omegas_phys)
-        omegas_phys = omegas_phys[sorted_phys]
-        Gr0_wigner0_phys = Gr0_wigner0_phys[sorted_phys]
-        Gk0_wigner0_phys = Gk0_wigner0_phys[sorted_phys]
-
-        sorted_aux = np.argsort(omegas_aux)
-        omegas_aux = omegas_aux[sorted_aux]
-        Gr0_wigner0_aux = Gr0_wigner0_aux[sorted_aux]
-        Gk0_wigner0_aux = Gk0_wigner0_aux[sorted_aux]
-
-        start_time = time.time()
-        tag,omegas_wigner,wigner_dic=G0FromSolverSpinSym(matrices,V,Om,U,fit_params,solver_params)
-        omegas_sol_phys,Gr_solver_phys,Gk_solver_phys=GphysFromFile(filepath=os.path.join(dirName,tag))
-        end_time = time.time()
-        time_elapsed=end_time-start_time
-        print(f"Solver time: {time_elapsed/60:.2f} min")
-
-        current_aux=current(omegas_aux,Gr0_wigner0_aux,T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-        current_phys=current(omegas_phys,Gr0_wigner0_phys,T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-        current_solver_aux=current(omegas_wigner,wigner_dic['0 0']['retarded'][0],T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-        current_solver_phys=current(omegas_sol_phys,Gr_solver_phys,T=T,muL=muL,muR=muR,D=D,T_fict=1,Gamma=Gamma)
-
-        if plot:
-            start_aux=np.where(omegas_wigner < -10)[0][-1]
-            end_aux=np.where(omegas_wigner > 10)[0][0]
-            start_phys=np.where(omegas_sol_phys < -10)[0][-1]
-            end_phys=np.where(omegas_sol_phys > 10)[0][0]
-            plt.figure()
-            plt.title(f'solver phi = {phi}')
-            gr_plot=wigner_dic['0 0']['retarded'][0]
-            gk_plot=wigner_dic['0 0']['keldysh'][0]
-            plt.plot(omegas_sol_phys[start_phys:end_phys],Gr_solver_phys.imag[start_phys:end_phys],label='retarded phys',color='navy')
-            plt.plot(omegas_sol_phys[start_phys:end_phys],Gk_solver_phys.imag[start_phys:end_phys],label='keldysh phys', color = '#a65628')
-            plt.plot(omegas_wigner[start_aux:end_aux],gr_plot.imag[start_aux:end_aux],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(omegas_wigner[start_aux:end_aux],gk_plot.imag[start_aux:end_aux],label='keldysh aux',color = '#f78843',linestyle='dashed')
-
-            plt.legend()
-            plt.show(block=False)
-
-            start_aux=np.where(omegas_aux < -10)[0][-1]
-            end_aux=np.where(omegas_aux > 10)[0][0]
-            start_phys=np.where(omegas_phys < -10)[0][-1]
-            end_phys=np.where(omegas_phys > 10)[0][0]
-
-            plt.figure()
-            plt.title(f'non interacting phi = {phi}')
-            plt.plot(omegas_phys[start_phys:end_phys],Gr0_wigner0_phys.imag[start_phys:end_phys],label='retarded phys', color = 'navy')
-            plt.plot(omegas_phys[start_phys:end_phys],Gk0_wigner0_phys.imag[start_phys:end_phys],label='keldysh phys', color = '#a65628')
-            plt.plot(omegas_aux[start_aux:end_aux],Gr0_wigner0_aux.imag[start_aux:end_aux],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(omegas_aux[start_aux:end_aux],Gk0_wigner0_aux.imag[start_aux:end_aux],label='keldysh aux',color = '#f78843',linestyle='dashed')
-            plt.legend()
-            plt.show(block=False)
-
-            plt.figure()
-            plt.title('Delta')
-            plt.plot(del_phys[:,0],del_phys[:,1],label='retarded phys', color = 'navy')
-            plt.plot(del_phys[:,0],del_phys[:,2],label='keldysh phys', color = '#a65628')
-            plt.plot(del_aux[:,0],del_aux[:,1],label='retarded aux',color='#a6cee3',linestyle='dashed')
-            plt.plot(del_aux[:,0],del_aux[:,2],label='keldysh aux',color = '#f78843',linestyle='dashed')
-            plt.legend()
-            plt.show(block=False)
-
-        currents_phys.append(current_phys.real)
-        currents_aux.append(current_aux.real)
-        currents_solver_aux.append(current_solver_aux.real)
-        currents_solver_phys.append(current_solver_phys.real)
-        tags.append(tag)
-
-        E_Gr=np.sqrt(np.trapezoid((abs(Gr0_wigner0_phys-Gr0_wigner0_aux))**2,omegas_phys))/np.sqrt(np.trapezoid(abs(Gr0_wigner0_phys)**2,omegas_phys))
-        E_Gk=np.sqrt(np.trapezoid((abs(Gk0_wigner0_phys.imag-Gk0_wigner0_aux.imag))**2,omegas_phys))/np.sqrt(np.trapezoid(abs(Gk0_wigner0_phys.imag)**2,omegas_phys))
-        chis.append(float(chi))
-        Es_Gr.append(E_Gr)
-        Es_Gk.append(E_Gk)
-        phis_file.append(phi)
-        save_all(filepath, phis_file,currents_aux, currents_phys, currents_solver_aux, currents_solver_phys,Es_Gr, Es_Gk,chis,tags)
-    return filepath
 
 def calcCurrentsFromFolder(dirName,phis=[0,1]):
     '''
@@ -1498,33 +1100,26 @@ def plotCurrent(dirpaths,U0=False,fig=None,ax=None):
 # Greens functions and plotting them, some parts (especially filepaths) might 
 # have to be adjusted, read the comments carefully
 
-#deltaTest()
-#filepath='current_results/V3Om3U0/phi0-20250409-124047.json'
-#GphysFromFile(filepath)
-#createFit("Fit_constantDOS_Gamma.json",sites=5)
+
 ###################################################################################################
 # here we define the parameters for the solver, including where to store the results
 solver_params={'dt':0.05,'eps':1e-8,'max_iter': 100,
                 'av_periods':4,'tf':1e1,'t_step':1e1,'av_Tau':5,'writeFile':True,
-                'dirName':'current_results5sites'}
+                'dirName':script_dir/'current_results5sites'}
 
 ####################################################################################################
-#here we create the fitting parameters according to a given DOS, 
-# for different 'phis' they can than be checked
-# seperatly by visual inspecting all of them including a driving, if the fit is bad it might make 
-# sense to adjust the weights, such that the most relevant features are covered
 
-phis_check=[14.5]
-#createFit('Fit_constantDOS_noWeights.json',plot=True,change_phis=[],phis=[3],T=1/10,sites=5,t=1/np.sqrt(2))
 #phis_check=np.arange(0,15,0.5)
 #phis_check=[3]
-#checkFit('Fit_constantDOS.json',phis_check,6,3,plot=True)
+#checkFit(script_dir/'Fit_constantDOS.json',phis_check,6,3,plot=True)
+
 #phis=[0]
 
 #####################################################################################################
 # in this section, one runs the solver for the given phis and with the fitparameters read from a file
-phis=np.arange(9.5,13,0.5)
-filepath='Fit_constantDOS.json'
+#phis=np.arange(9.5,13,0.5)
+phis=[0]
+filepath=script_dir/'Fit_constantDOS.json'
 V=0
 Om=15
 U=6
